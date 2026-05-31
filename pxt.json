@@ -1,7 +1,7 @@
 {
   "name": "agent-survival-toolkit",
   "version": "0.0.1",
-  "description": "Survival-safe advanced workflows for the Minecraft Education Agent.",
+  "description": "Advanced statement-style workflows for the Minecraft Education Agent.",
   "license": "MIT",
   "icon": "./icon.png",
   "files": [

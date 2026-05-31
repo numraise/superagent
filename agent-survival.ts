@@ -3,31 +3,49 @@ enum AgentSurvivalError {
     None = 0,
     //% block="blocked"
     Blocked = 1,
-    //% block="unsafe"
-    Unsafe = 2,
     //% block="no item"
-    NoItem = 3,
+    NoItem = 2,
     //% block="invalid input"
-    InvalidInput = 4
+    InvalidInput = 3
+}
+
+enum AgentSurvivalAxis {
+    //% block="forward"
+    Forward = 0,
+    //% block="right"
+    Right = 1,
+    //% block="up"
+    Up = 2
+}
+
+enum AgentSurvivalScanTarget {
+    //% block="any block"
+    AnyBlock = 0,
+    //% block="water"
+    Water = 1,
+    //% block="lava"
+    Lava = 2
 }
 
 /**
- * Survival-safe workflow blocks for the Minecraft Education Agent.
+ * Advanced workflow blocks for the Minecraft Education Agent in survival play.
  */
 //% weight=95 color=#2d7d46 icon="\uf6ec" block="Agent Survival"
 namespace agentSurvival {
     let lastError = AgentSurvivalError.None
+    let lastCount = 0
 
     const AIR = 0
     const WATER = 9
     const STILL_WATER = 8
     const LAVA = 11
     const STILL_LAVA = 10
-    const FIRE = 51
-    const CACTUS = 81
-    const MAGMA = 213
-    const CAMPFIRE = 720
-    const SOUL_CAMPFIRE = 721
+    const GRASS = 2
+    const DIRT = 3
+    const FARMLAND = 60
+    const MYCELIUM = 110
+    const GRASS_PATH = 198
+    const PODZOL = 243
 
     function clamp(value: number, min: number, max: number): number {
         if (value < min) {
@@ -39,46 +57,49 @@ namespace agentSurvival {
         return value
     }
 
-    function remember(error: AgentSurvivalError): AgentSurvivalError {
+    function resetResult() {
+        lastError = AgentSurvivalError.None
+        lastCount = 0
+    }
+
+    function remember(error: AgentSurvivalError) {
         lastError = error
-        return error
     }
 
     function blockAt(direction: number): number {
         return agent.inspect(AgentInspection.Block, direction)
     }
 
-    function isHazardBlock(blockId: number): boolean {
-        return blockId == WATER
-            || blockId == STILL_WATER
-            || blockId == LAVA
-            || blockId == STILL_LAVA
-            || blockId == FIRE
-            || blockId == CACTUS
-            || blockId == MAGMA
-            || blockId == CAMPFIRE
-            || blockId == SOUL_CAMPFIRE
+    function offsetFromAgent(x: number, y: number, z: number): Position {
+        return positions.add(agent.getPosition(), pos(x, y, z))
     }
 
-    function hasSafeFloor(): boolean {
-        return agent.detect(AgentDetection.Block, DOWN) && !isHazardBlock(blockAt(DOWN))
-    }
-
-    function frontIsSafeToEnter(): boolean {
-        return !agent.detect(AgentDetection.Block, FORWARD) && !isHazardBlock(blockAt(FORWARD)) && hasSafeFloor()
-    }
-
-    function clearFrontIfSafe(): boolean {
-        if (!agent.detect(AgentDetection.Block, FORWARD)) {
-            return true
+    function scanMatches(target: AgentSurvivalScanTarget, p: Position): boolean {
+        if (target == AgentSurvivalScanTarget.Water) {
+            return blocks.testForBlock(WATER, p) || blocks.testForBlock(STILL_WATER, p)
         }
-        if (isHazardBlock(blockAt(FORWARD))) {
-            remember(AgentSurvivalError.Unsafe)
-            return false
+        if (target == AgentSurvivalScanTarget.Lava) {
+            return blocks.testForBlock(LAVA, p) || blocks.testForBlock(STILL_LAVA, p)
         }
-        agent.destroy(FORWARD)
-        agent.collectAll()
-        return true
+        return !blocks.testForBlock(AIR, p)
+    }
+
+    function mobsNearAgentFamily(radius: number, family: string): TargetSelector {
+        radius = clamp(radius, 1, 64)
+        let selected = mobs.target(ALL_ENTITIES)
+        selected.atCoordinate(agent.getPosition())
+        selected.withinRadius(radius)
+        selected.addRule("family", family)
+        return selected
+    }
+
+    function isSoilBlock(blockId: number): boolean {
+        return blockId == DIRT
+            || blockId == GRASS
+            || blockId == FARMLAND
+            || blockId == MYCELIUM
+            || blockId == GRASS_PATH
+            || blockId == PODZOL
     }
 
     function turnAroundInternal() {
@@ -86,176 +107,98 @@ namespace agentSurvival {
         agent.turn(TurnDirection.Left)
     }
 
-    function resetError() {
-        lastError = AgentSurvivalError.None
-    }
-
-    /**
-     * Get the last reason a survival workflow stopped.
-     */
-    //% blockId=agent_survival_last_error block="agent survival last error"
-    //% group="Status"
-    export function reportLastError(): AgentSurvivalError {
-        return lastError
-    }
-
-    /**
-     * True if the selected Agent slot has at least the requested item count.
-     */
-    //% blockId=agent_survival_has_enough block="agent has at least %amount items in slot %slot"
-    //% slot.min=1 slot.max=27 amount.min=1 amount.max=64
-    //% group="Inventory"
-    export function hasEnough(slot: number, amount: number): boolean {
-        slot = clamp(slot, 1, 27)
-        amount = clamp(amount, 1, 64)
-        return agent.getItemCount(slot) >= amount
-    }
-
-    /**
-     * Move forward while checking for floor, hazards, and blocking blocks.
-     */
-    //% blockId=agent_survival_move_safe block="agent move safely %steps steps"
-    //% steps.min=0 steps.max=64
-    //% group="Movement"
-    export function moveSafe(steps: number): number {
-        resetError()
-        steps = clamp(steps, 0, 64)
-        let moved = 0
-        for (let i = 0; i < steps; i++) {
-            if (!frontIsSafeToEnter()) {
-                remember(detectHazardNear() ? AgentSurvivalError.Unsafe : AgentSurvivalError.Blocked)
-                break
-            }
-            agent.move(FORWARD, 1)
-            moved++
-        }
-        return moved
-    }
-
-    /**
-     * Move forward until blocked or unsafe, up to the limit.
-     */
-    //% blockId=agent_survival_move_until_blocked block="agent move until blocked max %maxSteps steps"
-    //% maxSteps.min=1 maxSteps.max=128
-    //% group="Movement"
-    export function moveUntilBlocked(maxSteps: number): number {
-        return moveSafe(clamp(maxSteps, 1, 128))
-    }
-
-    /**
-     * Turn around, safely walk back, then face the original direction.
-     */
-    //% blockId=agent_survival_backtrack block="agent backtrack %steps steps"
-    //% steps.min=1 steps.max=64
-    //% group="Movement"
-    export function backtrack(steps: number): number {
-        turnAroundInternal()
-        let moved = moveSafe(clamp(steps, 1, 64))
-        turnAroundInternal()
-        return moved
-    }
-
-    /**
-     * Check nearby blocks that commonly make survival automation dangerous.
-     */
-    //% blockId=agent_survival_detect_hazard block="agent detects hazard nearby"
-    //% group="Safety"
-    export function detectHazardNear(): boolean {
-        return isHazardBlock(blockAt(FORWARD))
-            || isHazardBlock(blockAt(DOWN))
-            || isHazardBlock(blockAt(LEFT))
-            || isHazardBlock(blockAt(RIGHT))
-    }
-
-    /**
-     * Returns true when the Agent should stop before continuing.
-     */
-    //% blockId=agent_survival_stop_if_unsafe block="agent should stop if unsafe"
-    //% group="Safety"
-    export function stopIfUnsafe(): boolean {
-        if (detectHazardNear() || !hasSafeFloor()) {
-            remember(AgentSurvivalError.Unsafe)
-            return true
-        }
-        return false
-    }
-
-    /**
-     * Destroy the block in front only when it is not a known hazard.
-     */
-    //% blockId=agent_survival_dig_forward_safe block="agent dig forward safely"
-    //% group="Mining"
-    export function digForwardSafe(): boolean {
-        resetError()
-        return clearFrontIfSafe()
-    }
-
-    /**
-     * Dig forward safely, then collect nearby drops.
-     */
-    //% blockId=agent_survival_dig_and_collect block="agent dig and collect"
-    //% group="Mining"
-    export function digAndCollect(): boolean {
-        resetError()
-        if (!clearFrontIfSafe()) {
+    function destroyIfPresent(direction: number): boolean {
+        if (!agent.detect(AgentDetection.Block, direction)) {
             return false
         }
+        agent.destroy(direction)
         agent.collectAll()
         return true
     }
 
-    /**
-     * Dig a one-block-wide line and move through it safely.
-     */
-    //% blockId=agent_survival_mine_line block="agent mine line length %length"
-    //% length.min=1 length.max=128
-    //% group="Mining"
-    export function mineLine(length: number): number {
-        resetError()
-        length = clamp(length, 1, 128)
-        let mined = 0
-        for (let i = 0; i < length; i++) {
-            if (!clearFrontIfSafe()) {
-                break
-            }
-            if (moveSafe(1) != 1) {
-                break
-            }
-            mined++
+    function destroySoilIfPresent(direction: number): boolean {
+        if (!agent.detect(AgentDetection.Block, direction)) {
+            return false
         }
-        return mined
+        if (!isSoilBlock(blockAt(direction))) {
+            return false
+        }
+        agent.destroy(direction)
+        agent.collectAll()
+        lastCount++
+        return true
     }
 
-    /**
-     * Mine a rectangular tunnel face, moving forward one slice at a time.
-     * The Agent starts at the lower-left corner of the tunnel face.
-     */
-    //% blockId=agent_survival_mine_tunnel block="agent mine tunnel length %length width %width height %height"
-    //% length.min=1 length.max=64 width.min=1 width.max=5 height.min=1 height.max=5
-    //% group="Mining"
-    export function mineTunnel(length: number, width: number, height: number): number {
-        resetError()
-        length = clamp(length, 1, 64)
-        width = clamp(width, 1, 5)
-        height = clamp(height, 1, 5)
-        let slices = 0
-        for (let i = 0; i < length; i++) {
-            if (!clearTunnelFace(width, height)) {
-                break
+    function moveThrough(direction: number, soilOnly: boolean): boolean {
+        if (agent.detect(AgentDetection.Block, direction)) {
+            let cleared = soilOnly ? destroySoilIfPresent(direction) : destroyIfPresent(direction)
+            if (!cleared && agent.detect(AgentDetection.Block, direction)) {
+                remember(AgentSurvivalError.Blocked)
+                return false
             }
-            if (moveSafe(1) != 1) {
-                break
-            }
-            slices++
         }
-        return slices
+        agent.move(direction, 1)
+        return true
     }
 
-    function clearTunnelFace(width: number, height: number): boolean {
+    function axisDirection(axis: AgentSurvivalAxis, negative: boolean): number {
+        if (axis == AgentSurvivalAxis.Right) {
+            return negative ? LEFT : RIGHT
+        }
+        if (axis == AgentSurvivalAxis.Up) {
+            return negative ? DOWN : UP
+        }
+        return negative ? BACK : FORWARD
+    }
+
+    function placeIfEmpty(direction: number, slot: number): boolean {
+        if (agent.detect(AgentDetection.Block, direction)) {
+            return false
+        }
+        if (!hasEnough(slot, 1)) {
+            remember(AgentSurvivalError.NoItem)
+            return false
+        }
+        agent.setSlot(slot)
+        agent.place(direction)
+        return true
+    }
+
+    function moveAndPlaceLine(slot: number, length: number, placeDirection: number): number {
+        let placed = 0
+        for (let i = 0; i < length; i++) {
+            if (placeIfEmpty(placeDirection, slot)) {
+                placed++
+            } else if (lastError == AgentSurvivalError.NoItem) {
+                break
+            }
+            if (i < length - 1) {
+                agent.move(FORWARD, 1)
+            }
+        }
+        return placed
+    }
+
+    function backtrackInternal(steps: number) {
+        turnAroundInternal()
+        agent.move(FORWARD, steps)
+        turnAroundInternal()
+    }
+
+    function attackDirection(direction: number, hits: number) {
+        hits = clamp(hits, 1, 32)
+        for (let i = 0; i < hits; i++) {
+            agent.attack(direction)
+            lastCount++
+        }
+    }
+
+    function clearTunnelFace(width: number, height: number): number {
+        let cleared = 0
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
-                if (!clearFrontIfSafe()) {
-                    return false
+                if (destroyIfPresent(FORWARD)) {
+                    cleared++
                 }
                 if (y < height - 1) {
                     agent.move(UP, 1)
@@ -271,91 +214,441 @@ namespace agentSurvival {
         for (let xBack = 0; xBack < width - 1; xBack++) {
             agent.move(LEFT, 1)
         }
+        return cleared
+    }
+
+    function moveToCubeCell(currentX: number, currentY: number, currentZ: number, targetX: number, targetY: number, targetZ: number): boolean {
+        while (currentX < targetX) {
+            if (!moveThrough(RIGHT, true)) {
+                return false
+            }
+            currentX++
+        }
+        while (currentX > targetX) {
+            if (!moveThrough(LEFT, true)) {
+                return false
+            }
+            currentX--
+        }
+        while (currentZ < targetZ) {
+            if (!moveThrough(FORWARD, true)) {
+                return false
+            }
+            currentZ++
+        }
+        while (currentZ > targetZ) {
+            if (!moveThrough(BACK, true)) {
+                return false
+            }
+            currentZ--
+        }
+        while (currentY < targetY) {
+            if (!moveThrough(UP, true)) {
+                return false
+            }
+            currentY++
+        }
+        while (currentY > targetY) {
+            if (!moveThrough(DOWN, true)) {
+                return false
+            }
+            currentY--
+        }
         return true
     }
 
     /**
-     * Mine a simple staircase down. The Agent returns facing the same direction.
+     * Get the last reason an Agent Survival action stopped.
      */
-    //% blockId=agent_survival_mine_stair_down block="agent mine stair down depth %depth"
+    //% blockId=agent_survival_last_error block="agent last error"
+    //% group="Status"
+    export function reportLastError(): AgentSurvivalError {
+        return lastError
+    }
+
+    /**
+     * Get the number of blocks, steps, slices, or items handled by the last action.
+     */
+    //% blockId=agent_survival_last_count block="agent last count"
+    //% group="Status"
+    export function reportLastCount(): number {
+        return lastCount
+    }
+
+    /**
+     * True when the selected Agent slot has at least the requested item count.
+     */
+    //% blockId=agent_survival_has_enough block="agent has at least %amount items in slot %slot"
+    //% slot.min=1 slot.max=27 amount.min=1 amount.max=64
+    //% group="Inventory"
+    export function hasEnough(slot: number, amount: number): boolean {
+        slot = clamp(slot, 1, 27)
+        amount = clamp(amount, 1, 64)
+        return agent.getItemCount(slot) >= amount
+    }
+
+    /**
+     * Scan a configurable cube around the Agent for blocks, water, or lava.
+     */
+    //% blockId=agent_survival_scan_blocks_around block="agent scan %target around radius %radius height %height"
+    //% radius.min=1 radius.max=32 height.min=0 height.max=16
+    //% group="Detection"
+    export function scanBlocksAround(target: AgentSurvivalScanTarget, radius: number, height: number) {
+        resetResult()
+        radius = clamp(radius, 1, 32)
+        height = clamp(height, 0, 16)
+        for (let x = 0 - radius; x <= radius; x++) {
+            for (let y = 0 - height; y <= height; y++) {
+                for (let z = 0 - radius; z <= radius; z++) {
+                    if (scanMatches(target, offsetFromAgent(x, y, z))) {
+                        lastCount++
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * True if the most recent scan found at least one matching block.
+     */
+    //% blockId=agent_survival_scan_found block="agent scan found target"
+    //% group="Detection"
+    export function scanFound(): boolean {
+        return lastCount > 0
+    }
+
+    /**
+     * Build a selector for passive animal mobs near the Agent.
+     */
+    //% blockId=agent_survival_passive_mobs_near block="passive mobs near agent radius %radius"
+    //% radius.min=1 radius.max=64
+    //% group="Detection"
+    export function passiveMobsNearAgent(radius: number): TargetSelector {
+        return mobsNearAgentFamily(radius, "animal")
+    }
+
+    /**
+     * Build a selector for hostile monster mobs near the Agent.
+     */
+    //% blockId=agent_survival_hostile_mobs_near block="hostile mobs near agent radius %radius"
+    //% radius.min=1 radius.max=64
+    //% group="Detection"
+    export function hostileMobsNearAgent(radius: number): TargetSelector {
+        return mobsNearAgentFamily(radius, "monster")
+    }
+
+    /**
+     * Collect nearby drops and store the pickup count as one completed action.
+     */
+    //% blockId=agent_survival_collect_drops block="agent collect drops"
+    //% group="Inventory"
+    export function collectDrops() {
+        resetResult()
+        agent.collectAll()
+        lastCount = 1
+    }
+
+    /**
+     * Move forward without safety checks.
+     */
+    //% blockId=agent_survival_stride_forward block="agent stride forward %steps steps"
+    //% steps.min=1 steps.max=128
+    //% group="Movement"
+    export function strideForward(steps: number) {
+        resetResult()
+        steps = clamp(steps, 1, 128)
+        agent.move(FORWARD, steps)
+        lastCount = steps
+    }
+
+    /**
+     * Turn around, move back, then face the original direction.
+     */
+    //% blockId=agent_survival_backtrack block="agent backtrack %steps steps"
+    //% steps.min=1 steps.max=128
+    //% group="Movement"
+    export function backtrack(steps: number) {
+        resetResult()
+        steps = clamp(steps, 1, 128)
+        backtrackInternal(steps)
+        lastCount = steps
+    }
+
+    /**
+     * Attack one direction multiple times.
+     */
+    //% blockId=agent_survival_strike_axis block="agent strike %axis negative %negative hits %hits"
+    //% hits.min=1 hits.max=32
+    //% group="Combat"
+    export function strikeAxis(axis: AgentSurvivalAxis, negative: boolean, hits: number) {
+        resetResult()
+        attackDirection(axisDirection(axis, negative), hits)
+    }
+
+    /**
+     * Attack forward, right, back, and left without moving.
+     */
+    //% blockId=agent_survival_sweep_attack block="agent sweep attack hits %hits"
+    //% hits.min=1 hits.max=16
+    //% group="Combat"
+    export function sweepAttack(hits: number) {
+        resetResult()
+        hits = clamp(hits, 1, 16)
+        attackDirection(FORWARD, hits)
+        attackDirection(RIGHT, hits)
+        attackDirection(BACK, hits)
+        attackDirection(LEFT, hits)
+    }
+
+    /**
+     * Attack low, middle, and high in front of the Agent.
+     */
+    //% blockId=agent_survival_vertical_combo block="agent vertical combo hits %hits"
+    //% hits.min=1 hits.max=16
+    //% group="Combat"
+    export function verticalCombo(hits: number) {
+        resetResult()
+        hits = clamp(hits, 1, 16)
+        attackDirection(DOWN, hits)
+        attackDirection(FORWARD, hits)
+        attackDirection(UP, hits)
+    }
+
+    /**
+     * Attack forward, move forward, and repeat.
+     */
+    //% blockId=agent_survival_charge_attack block="agent charge attack steps %steps hits %hits"
+    //% steps.min=1 steps.max=64 hits.min=1 hits.max=16
+    //% group="Combat"
+    export function chargeAttack(steps: number, hits: number) {
+        resetResult()
+        steps = clamp(steps, 1, 64)
+        hits = clamp(hits, 1, 16)
+        for (let i = 0; i < steps; i++) {
+            attackDirection(FORWARD, hits)
+            agent.move(FORWARD, 1)
+        }
+    }
+
+    /**
+     * Attack along a forward line, then return to the starting position.
+     */
+    //% blockId=agent_survival_lunge_attack block="agent lunge attack range %range hits %hits and return"
+    //% range.min=1 range.max=16 hits.min=1 hits.max=16
+    //% group="Combat"
+    export function lungeAttack(range: number, hits: number) {
+        resetResult()
+        range = clamp(range, 1, 16)
+        hits = clamp(hits, 1, 16)
+        for (let i = 0; i < range; i++) {
+            attackDirection(FORWARD, hits)
+            if (i < range - 1) {
+                agent.move(FORWARD, 1)
+            }
+        }
+        if (range > 1) {
+            backtrackInternal(range - 1)
+        }
+    }
+
+    /**
+     * Attack forward, step backward, and repeat.
+     */
+    //% blockId=agent_survival_retreat_attack block="agent retreat attack steps %steps hits %hits"
+    //% steps.min=1 steps.max=64 hits.min=1 hits.max=16
+    //% group="Combat"
+    export function retreatAttack(steps: number, hits: number) {
+        resetResult()
+        steps = clamp(steps, 1, 64)
+        hits = clamp(hits, 1, 16)
+        for (let i = 0; i < steps; i++) {
+            attackDirection(FORWARD, hits)
+            agent.move(BACK, 1)
+        }
+    }
+
+    /**
+     * Attack every adjacent direction for several rounds.
+     */
+    //% blockId=agent_survival_guard_area block="agent guard area rounds %rounds hits %hits"
+    //% rounds.min=1 rounds.max=32 hits.min=1 hits.max=8
+    //% group="Combat"
+    export function guardArea(rounds: number, hits: number) {
+        resetResult()
+        rounds = clamp(rounds, 1, 32)
+        hits = clamp(hits, 1, 8)
+        for (let i = 0; i < rounds; i++) {
+            attackDirection(FORWARD, hits)
+            attackDirection(RIGHT, hits)
+            attackDirection(BACK, hits)
+            attackDirection(LEFT, hits)
+            attackDirection(UP, hits)
+            attackDirection(DOWN, hits)
+        }
+    }
+
+    /**
+     * Dig one block in the selected axis and direction.
+     */
+    //% blockId=agent_survival_dig_axis block="agent dig %axis negative %negative"
+    //% group="Mining"
+    export function digAxis(axis: AgentSurvivalAxis, negative: boolean) {
+        resetResult()
+        if (destroyIfPresent(axisDirection(axis, negative))) {
+            lastCount = 1
+        }
+    }
+
+    /**
+     * Dig forward, collect, and move into the cleared space for a straight drill.
+     */
+    //% blockId=agent_survival_drill_line block="agent drill line length %length"
+    //% length.min=1 length.max=128
+    //% group="Mining"
+    export function drillLine(length: number) {
+        resetResult()
+        length = clamp(length, 1, 128)
+        for (let i = 0; i < length; i++) {
+            destroyIfPresent(FORWARD)
+            agent.collectAll()
+            agent.move(FORWARD, 1)
+            lastCount++
+        }
+    }
+
+    /**
+     * Mine a rectangular tunnel face, then advance one slice at a time.
+     */
+    //% blockId=agent_survival_quarry_tunnel block="agent quarry tunnel length %length width %width height %height"
+    //% length.min=1 length.max=64 width.min=1 width.max=7 height.min=1 height.max=7
+    //% group="Mining"
+    export function quarryTunnel(length: number, width: number, height: number) {
+        resetResult()
+        length = clamp(length, 1, 64)
+        width = clamp(width, 1, 7)
+        height = clamp(height, 1, 7)
+        for (let i = 0; i < length; i++) {
+            clearTunnelFace(width, height)
+            agent.move(FORWARD, 1)
+            lastCount++
+        }
+    }
+
+    /**
+     * Mine a staircase down.
+     */
+    //% blockId=agent_survival_stair_mine_down block="agent stair mine down depth %depth"
     //% depth.min=1 depth.max=64
     //% group="Mining"
-    export function mineStairDown(depth: number): number {
-        resetError()
+    export function stairMineDown(depth: number) {
+        resetResult()
         depth = clamp(depth, 1, 64)
-        let steps = 0
         for (let i = 0; i < depth; i++) {
-            if (!clearFrontIfSafe()) {
-                break
-            }
-            if (moveSafe(1) != 1) {
-                break
-            }
-            if (isHazardBlock(blockAt(DOWN))) {
-                remember(AgentSurvivalError.Unsafe)
-                break
-            }
-            agent.destroy(DOWN)
-            agent.collectAll()
+            destroyIfPresent(FORWARD)
+            agent.move(FORWARD, 1)
+            destroyIfPresent(DOWN)
             agent.move(DOWN, 1)
-            steps++
+            agent.collectAll()
+            lastCount++
         }
-        return steps
     }
 
     /**
-     * Clear a small rectangular volume. The Agent starts at the lower-left-front corner.
+     * Strip mine a main tunnel with left and right branch cuts.
      */
-    //% blockId=agent_survival_clear_small_area block="agent clear small area width %width height %height depth %depth"
-    //% width.min=1 width.max=5 height.min=1 height.max=5 depth.min=1 depth.max=16
+    //% blockId=agent_survival_strip_mine block="agent strip mine length %length branch length %branchLength every %spacing"
+    //% length.min=1 length.max=128 branchLength.min=1 branchLength.max=64 spacing.min=1 spacing.max=16
     //% group="Mining"
-    export function clearSmallArea(width: number, height: number, depth: number): number {
-        return mineTunnel(depth, width, height)
-    }
-
-    /**
-     * Place blocks from a slot in a forward line.
-     */
-    //% blockId=agent_survival_place_line block="agent place line using slot %slot length %length"
-    //% slot.min=1 slot.max=27 length.min=1 length.max=64
-    //% group="Building"
-    export function placeLine(slot: number, length: number): number {
-        resetError()
-        slot = clamp(slot, 1, 27)
-        length = clamp(length, 1, 64)
-        agent.setSlot(slot)
-        let placed = 0
+    export function stripMine(length: number, branchLength: number, spacing: number) {
+        resetResult()
+        length = clamp(length, 1, 128)
+        branchLength = clamp(branchLength, 1, 64)
+        spacing = clamp(spacing, 1, 16)
         for (let i = 0; i < length; i++) {
-            if (!hasEnough(slot, 1)) {
-                remember(AgentSurvivalError.NoItem)
-                break
-            }
-            if (!agent.detect(AgentDetection.Block, DOWN)) {
-                agent.place(DOWN)
-                placed++
-            }
-            if (i < length - 1 && moveSafe(1) != 1) {
-                break
+            destroyIfPresent(FORWARD)
+            agent.move(FORWARD, 1)
+            lastCount++
+            if ((i + 1) % spacing == 0) {
+                agent.turn(TurnDirection.Left)
+                for (let left = 0; left < branchLength; left++) {
+                    destroyIfPresent(FORWARD)
+                    agent.move(FORWARD, 1)
+                    lastCount++
+                }
+                backtrackInternal(branchLength)
+                agent.turn(TurnDirection.Right)
+                agent.turn(TurnDirection.Right)
+                for (let right = 0; right < branchLength; right++) {
+                    destroyIfPresent(FORWARD)
+                    agent.move(FORWARD, 1)
+                    lastCount++
+                }
+                backtrackInternal(branchLength)
+                agent.turn(TurnDirection.Left)
             }
         }
-        return placed
     }
 
     /**
-     * Build a flat floor using real blocks from the selected Agent slot.
+     * Clear soil blocks in a 3 x 3 x 3 cube around the Agent and return near the start.
      */
-    //% blockId=agent_survival_build_floor block="agent build floor using slot %slot width %width depth %depth"
-    //% slot.min=1 slot.max=27 width.min=1 width.max=16 depth.min=1 depth.max=16
+    //% blockId=agent_survival_clear_dirt_cube block="agent clear dirt cube 3 x 3 x 3"
+    //% group="Mining"
+    export function clearDirtCube3() {
+        resetResult()
+        let x = 0
+        let y = 0
+        let z = 0
+        for (let layer = -1; layer <= 1; layer++) {
+            let rows = layer % 2 == 0 ? [-1, 0, 1] : [1, 0, -1]
+            for (let rowIndex = 0; rowIndex < 3; rowIndex++) {
+                let targetZ = rows[rowIndex]
+                let columns = rowIndex % 2 == 0 ? [-1, 0, 1] : [1, 0, -1]
+                for (let columnIndex = 0; columnIndex < 3; columnIndex++) {
+                    let targetX = columns[columnIndex]
+                    if (moveToCubeCell(x, y, z, targetX, layer, targetZ)) {
+                        x = targetX
+                        y = layer
+                        z = targetZ
+                    } else {
+                        moveToCubeCell(x, y, z, 0, 0, 0)
+                        return
+                    }
+                }
+            }
+        }
+        moveToCubeCell(x, y, z, 0, 0, 0)
+    }
+
+    /**
+     * Place blocks below the Agent while moving forward.
+     */
+    //% blockId=agent_survival_lay_path block="agent lay path using slot %slot length %length"
+    //% slot.min=1 slot.max=27 length.min=1 length.max=128
     //% group="Building"
-    export function buildFloor(slot: number, width: number, depth: number): number {
-        resetError()
+    export function layPath(slot: number, length: number) {
+        resetResult()
         slot = clamp(slot, 1, 27)
-        width = clamp(width, 1, 16)
-        depth = clamp(depth, 1, 16)
-        agent.setSlot(slot)
-        let placed = 0
+        length = clamp(length, 1, 128)
+        lastCount = moveAndPlaceLine(slot, length, DOWN)
+    }
+
+    /**
+     * Build a flat platform using blocks from the selected Agent slot.
+     */
+    //% blockId=agent_survival_build_platform block="agent build platform using slot %slot width %width depth %depth"
+    //% slot.min=1 slot.max=27 width.min=1 width.max=32 depth.min=1 depth.max=32
+    //% group="Building"
+    export function buildPlatform(slot: number, width: number, depth: number) {
+        resetResult()
+        slot = clamp(slot, 1, 27)
+        width = clamp(width, 1, 32)
+        depth = clamp(depth, 1, 32)
         for (let z = 0; z < depth; z++) {
-            placed += placeLine(slot, width)
+            lastCount += moveAndPlaceLine(slot, width, DOWN)
+            if (lastError == AgentSurvivalError.NoItem) {
+                return
+            }
             if (z < depth - 1) {
                 if (z % 2 == 0) {
                     agent.move(RIGHT, 1)
@@ -366,24 +659,32 @@ namespace agentSurvival {
                 }
             }
         }
-        return placed
     }
 
     /**
-     * Build a vertical wall using real blocks from the selected Agent slot.
+     * Build a vertical wall in front of the Agent.
      */
     //% blockId=agent_survival_build_wall block="agent build wall using slot %slot width %width height %height"
-    //% slot.min=1 slot.max=27 width.min=1 width.max=16 height.min=1 height.max=8
+    //% slot.min=1 slot.max=27 width.min=1 width.max=32 height.min=1 height.max=16
     //% group="Building"
-    export function buildWall(slot: number, width: number, height: number): number {
-        resetError()
+    export function buildWall(slot: number, width: number, height: number) {
+        resetResult()
         slot = clamp(slot, 1, 27)
-        width = clamp(width, 1, 16)
-        height = clamp(height, 1, 8)
+        width = clamp(width, 1, 32)
+        height = clamp(height, 1, 16)
         agent.setSlot(slot)
-        let placed = 0
         for (let y = 0; y < height; y++) {
-            placed += placeWallRow(slot, width)
+            for (let x = 0; x < width; x++) {
+                if (!hasEnough(slot, 1)) {
+                    remember(AgentSurvivalError.NoItem)
+                    return
+                }
+                agent.place(FORWARD)
+                lastCount++
+                if (x < width - 1) {
+                    agent.move(RIGHT, 1)
+                }
+            }
             if (y < height - 1) {
                 for (let xBack = 0; xBack < width - 1; xBack++) {
                     agent.move(LEFT, 1)
@@ -397,47 +698,25 @@ namespace agentSurvival {
         for (let xBack = 0; xBack < width - 1; xBack++) {
             agent.move(LEFT, 1)
         }
-        return placed
-    }
-
-    function placeWallRow(slot: number, width: number): number {
-        let placed = 0
-        for (let i = 0; i < width; i++) {
-            if (!hasEnough(slot, 1)) {
-                remember(AgentSurvivalError.NoItem)
-                break
-            }
-            agent.place(FORWARD)
-            placed++
-            if (i < width - 1) {
-                agent.move(RIGHT, 1)
-            }
-        }
-        return placed
     }
 
     /**
-     * Build a bridge by placing blocks below while moving forward safely.
+     * Build a bridge by placing blocks below while advancing.
      */
     //% blockId=agent_survival_build_bridge block="agent build bridge using slot %slot length %length width %width"
-    //% slot.min=1 slot.max=27 length.min=1 length.max=64 width.min=1 width.max=5
+    //% slot.min=1 slot.max=27 length.min=1 length.max=128 width.min=1 width.max=7
     //% group="Building"
-    export function buildBridge(slot: number, length: number, width: number): number {
-        resetError()
+    export function buildBridge(slot: number, length: number, width: number) {
+        resetResult()
         slot = clamp(slot, 1, 27)
-        length = clamp(length, 1, 64)
-        width = clamp(width, 1, 5)
-        agent.setSlot(slot)
-        let placed = 0
+        length = clamp(length, 1, 128)
+        width = clamp(width, 1, 7)
         for (let i = 0; i < length; i++) {
             for (let x = 0; x < width; x++) {
-                if (!agent.detect(AgentDetection.Block, DOWN)) {
-                    if (!hasEnough(slot, 1)) {
-                        remember(AgentSurvivalError.NoItem)
-                        return placed
-                    }
-                    agent.place(DOWN)
-                    placed++
+                if (placeIfEmpty(DOWN, slot)) {
+                    lastCount++
+                } else if (lastError == AgentSurvivalError.NoItem) {
+                    return
                 }
                 if (x < width - 1) {
                     agent.move(RIGHT, 1)
@@ -446,10 +725,53 @@ namespace agentSurvival {
             for (let xBack = 0; xBack < width - 1; xBack++) {
                 agent.move(LEFT, 1)
             }
-            if (i < length - 1 && moveSafe(1) != 1) {
-                break
+            if (i < length - 1) {
+                agent.move(FORWARD, 1)
             }
         }
-        return placed
+    }
+
+    /**
+     * Fill a 3D box with blocks from the selected slot. The Agent starts at the lower-left-front corner.
+     */
+    //% blockId=agent_survival_fill_box block="agent fill box using slot %slot width %width height %height depth %depth"
+    //% slot.min=1 slot.max=27 width.min=1 width.max=16 height.min=1 height.max=16 depth.min=1 depth.max=16
+    //% group="Building"
+    export function fillBox(slot: number, width: number, height: number, depth: number) {
+        resetResult()
+        slot = clamp(slot, 1, 27)
+        width = clamp(width, 1, 16)
+        height = clamp(height, 1, 16)
+        depth = clamp(depth, 1, 16)
+        agent.setSlot(slot)
+        for (let y = 0; y < height; y++) {
+            for (let z = 0; z < depth; z++) {
+                for (let x = 0; x < width; x++) {
+                    if (placeIfEmpty(DOWN, slot)) {
+                        lastCount++
+                    } else if (lastError == AgentSurvivalError.NoItem) {
+                        return
+                    }
+                    if (x < width - 1) {
+                        agent.move(RIGHT, 1)
+                    }
+                }
+                for (let xBack = 0; xBack < width - 1; xBack++) {
+                    agent.move(LEFT, 1)
+                }
+                if (z < depth - 1) {
+                    agent.move(FORWARD, 1)
+                }
+            }
+            for (let zBack = 0; zBack < depth - 1; zBack++) {
+                agent.move(BACK, 1)
+            }
+            if (y < height - 1) {
+                agent.move(UP, 1)
+            }
+        }
+        for (let yBack = 0; yBack < height - 1; yBack++) {
+            agent.move(DOWN, 1)
+        }
     }
 }

@@ -4,25 +4,51 @@ Advanced MakeCode blocks for the Minecraft Education Agent, designed for Member 
 
 The extension avoids world commands such as teleport, fill, setblock, summon, give, time, or weather. Every workflow is built from normal Agent actions: inspect, detect, move, destroy, place, collect, and inventory checks.
 
+Action blocks are statement-style blocks, so they connect in a command stack. Use `agent last count` and `agent last error` after an action to check what happened.
+
 ## Blocks
 
-- `agent move safely`
-- `agent move until blocked`
+- `agent last error`
+- `agent last count`
+- `agent has at least ... items in slot ...`
+- `agent scan any block/water/lava around radius ... height ...`
+- `agent scan found target`
+- `passive mobs near agent radius ...`
+- `hostile mobs near agent radius ...`
+- `agent collect drops`
+- `agent stride forward`
 - `agent backtrack`
-- `agent detects hazard nearby`
-- `agent should stop if unsafe`
-- `agent dig forward safely`
-- `agent dig and collect`
-- `agent mine line`
-- `agent mine tunnel`
-- `agent mine stair down`
-- `agent clear small area`
-- `agent place line`
+- `agent strike forward/right/up negative ...`
+- `agent sweep attack`
+- `agent vertical combo`
+- `agent charge attack`
+- `agent lunge attack`
+- `agent retreat attack`
+- `agent guard area`
+- `agent dig forward/right/up negative ...`
+- `agent drill line`
+- `agent quarry tunnel`
+- `agent stair mine down`
+- `agent strip mine`
+- `agent clear dirt cube 3 x 3 x 3`
+- `agent lay path`
+- `agent build platform`
 - `agent build wall`
-- `agent build floor`
 - `agent build bridge`
-- `agent has at least ... items`
-- `agent survival last error`
+- `agent fill box`
+
+## Result values
+
+`agent last count` means the count from the most recent action. Depending on the action it can mean steps moved, tunnel slices mined, branches advanced, blocks placed, or soil blocks cleared.
+
+`agent last error` can be:
+
+- `none`
+- `blocked`
+- `no item`
+- `invalid input`
+
+Mob detection blocks return target selectors. Use them with MakeCode `mobs` blocks such as teleport, effect, kill, or execute. MakeCode target selectors do not provide a clean count/boolean result, so block scans use `agent last count`, while mob selectors are passed into other mob actions.
 
 ## Install in MakeCode
 
