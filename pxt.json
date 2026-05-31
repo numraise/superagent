@@ -13,5 +13,9 @@
   "dependencies": {
     "core": "*"
   },
+  "supportedTargets": [
+    "minecraft"
+  ],
+  "preferredEditor": "tsprj",
   "public": true
 }
