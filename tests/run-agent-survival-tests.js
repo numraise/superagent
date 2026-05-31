@@ -68,6 +68,8 @@ function transformMakeCodeTs(source) {
     "moveAndPlaceLine",
     "backtrackInternal",
     "attackDirection",
+    "spendEmeraldCharge",
+    "powerAttackDirection",
     "clearTunnelFace",
     "moveToCubeCell",
   ]);
@@ -129,6 +131,14 @@ function createMockAgent(options = {}) {
     },
     attack(direction) {
       calls.push(["attack", direction]);
+    },
+    drop(direction, slot, quantity) {
+      calls.push(["drop", direction, slot, quantity]);
+      if ((inventory[slot] || 0) < quantity) {
+        return false;
+      }
+      inventory[slot] -= quantity;
+      return true;
     },
     destroy(direction) {
       calls.push(["destroy", direction]);
@@ -297,6 +307,32 @@ test("guardArea attacks all adjacent directions by round", () => {
   toolkit.guardArea(2, 1);
   assert.strictEqual(toolkit.reportLastCount(), 12);
   assert(agent.calls.some((call) => call[0] === "attack" && call[1] === Direction.DOWN));
+});
+
+test("emeraldPowerAttack spends one emerald for each five attacks", () => {
+  const agent = createMockAgent({ inventory: { 4: 3 } });
+  const toolkit = loadToolkit(agent);
+  toolkit.emeraldPowerAttack(1, 2, 4);
+  assert.strictEqual(toolkit.reportLastCount(), 12);
+  assert.strictEqual(toolkit.reportLastError(), 0);
+  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack").length, 12);
+  assert.deepStrictEqual(
+    agent.calls.filter((call) => call[0] === "drop"),
+    [
+      ["drop", Direction.BACK, 4, 1],
+      ["drop", Direction.BACK, 4, 1],
+      ["drop", Direction.BACK, 4, 1],
+    ]
+  );
+});
+
+test("emeraldPowerAttack stops when emerald charges run out", () => {
+  const agent = createMockAgent({ inventory: { 4: 1 } });
+  const toolkit = loadToolkit(agent);
+  toolkit.emeraldPowerAttack(1, 2, 4);
+  assert.strictEqual(toolkit.reportLastCount(), 5);
+  assert.strictEqual(toolkit.reportLastError(), 2);
+  assert.strictEqual(agent.calls.filter((call) => call[0] === "drop").length, 1);
 });
 
 test("digAxis destroys a selected adjacent block", () => {

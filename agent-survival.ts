@@ -193,6 +193,26 @@ namespace agentSurvival {
         }
     }
 
+    function spendEmeraldCharge(slot: number): boolean {
+        if (!hasEnough(slot, 1)) {
+            remember(AgentSurvivalError.NoItem)
+            return false
+        }
+        agent.drop(BACK, slot, 1)
+        return true
+    }
+
+    function powerAttackDirection(direction: number, hits: number, emeraldSlot: number): boolean {
+        for (let i = 0; i < hits; i++) {
+            if (lastCount % 5 == 0 && !spendEmeraldCharge(emeraldSlot)) {
+                return false
+            }
+            agent.attack(direction)
+            lastCount++
+        }
+        return true
+    }
+
     function clearTunnelFace(width: number, height: number): number {
         let cleared = 0
         for (let x = 0; x < width; x++) {
@@ -484,6 +504,27 @@ namespace agentSurvival {
             attackDirection(LEFT, hits)
             attackDirection(UP, hits)
             attackDirection(DOWN, hits)
+        }
+    }
+
+    /**
+     * Attack all six directions with emerald-powered bursts. One emerald is dropped from the selected slot for each five attacks.
+     */
+    //% blockId=agent_survival_emerald_power_attack block="agent emerald power attack all directions rounds %rounds hits %hits emerald slot %emeraldSlot"
+    //% rounds.min=1 rounds.max=32 hits.min=1 hits.max=8 emeraldSlot.min=1 emeraldSlot.max=27
+    //% group="Combat"
+    export function emeraldPowerAttack(rounds: number, hits: number, emeraldSlot: number) {
+        resetResult()
+        rounds = clamp(rounds, 1, 32)
+        hits = clamp(hits, 1, 8)
+        emeraldSlot = clamp(emeraldSlot, 1, 27)
+        for (let i = 0; i < rounds; i++) {
+            if (!powerAttackDirection(FORWARD, hits, emeraldSlot)) return
+            if (!powerAttackDirection(RIGHT, hits, emeraldSlot)) return
+            if (!powerAttackDirection(BACK, hits, emeraldSlot)) return
+            if (!powerAttackDirection(LEFT, hits, emeraldSlot)) return
+            if (!powerAttackDirection(UP, hits, emeraldSlot)) return
+            if (!powerAttackDirection(DOWN, hits, emeraldSlot)) return
         }
     }
 
