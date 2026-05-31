@@ -24,6 +24,19 @@ The extension avoids world commands such as teleport, fill, setblock, summon, gi
 - `agent has at least ... items`
 - `agent survival last error`
 
+## Install in MakeCode
+
+1. Open Minecraft Education Code Builder.
+2. Create or open a MakeCode project.
+3. Open **Extensions**.
+4. Search for this exact URL:
+
+```text
+https://github.com/numraise/agent-survival-toolkit
+```
+
+MakeCode search results only show approved extensions. Until this repo is approved by MakeCode/Microsoft, use the exact URL above.
+
 ## Automated Testing
 
 Run the local logic tests:

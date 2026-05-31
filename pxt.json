@@ -3,9 +3,12 @@
   "version": "0.0.1",
   "description": "Survival-safe advanced workflows for the Minecraft Education Agent.",
   "license": "MIT",
+  "icon": "./icon.png",
   "files": [
     "agent-survival.ts",
-    "README.md"
+    "README.md",
+    "LICENSE.txt",
+    "icon.png"
   ],
   "testFiles": [
     "test.ts"
