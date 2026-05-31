@@ -46,7 +46,7 @@ function transformMakeCodeTs(source) {
     })
     .replace(/namespace\s+agentSurvival\s*\{/, "const agentSurvival = (() => {\n")
     .replace(/export\s+function\s+(\w+)\s*\(/g, "function $1(")
-    .replace(/\)\s*:\s*(number|boolean|AgentSurvivalError|AgentSurvivalAxis|AgentSurvivalDirection|AgentSurvivalScanTarget|Position|TargetSelector)\s*\{/g, ") {")
+    .replace(/\)\s*:\s*(number|boolean|string|AgentSurvivalError|AgentSurvivalAxis|AgentSurvivalDirection|AgentSurvivalScanTarget|Position|TargetSelector)\s*\{/g, ") {")
     .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|AgentSurvivalError|AgentSurvivalAxis|AgentSurvivalDirection|AgentSurvivalScanTarget|Position|TargetSelector)/g, "$1$2")
     .replace(/\bconst\s+([A-Z][A-Z0-9_]*)\s*=/g, "const $1 =");
 
@@ -54,6 +54,9 @@ function transformMakeCodeTs(source) {
     "clamp",
     "resetResult",
     "remember",
+    "errorText",
+    "scanTargetText",
+    "speakStatus",
     "blockAt",
     "offsetFromAgent",
     "scanMatches",
@@ -169,10 +172,21 @@ function createMockAgent(options = {}) {
   return agent;
 }
 
-function loadToolkit(agent) {
+function createMockPlayer() {
+  const messages = [];
+  return {
+    messages,
+    say(message) {
+      messages.push(message);
+    },
+  };
+}
+
+function loadToolkit(agent, player = createMockPlayer()) {
   const source = fs.readFileSync(SOURCE, "utf8");
   const sandbox = {
     agent,
+    player,
     blocks: {
       testForBlock(block, position) {
         const key = `${position.x},${position.y},${position.z}`;
@@ -221,7 +235,7 @@ function loadToolkit(agent) {
   };
   vm.createContext(sandbox);
   vm.runInContext(transformMakeCodeTs(source), sandbox, { filename: "agent-survival.ts" });
-  return sandbox.globalThis.agentSurvival;
+  return { toolkit: sandbox.globalThis.agentSurvival, player };
 }
 
 function test(name, fn) {
@@ -236,15 +250,45 @@ function test(name, fn) {
 
 test("acting commands expose statement-style void APIs", () => {
   const agent = createMockAgent();
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   assert.strictEqual(toolkit.strideForward(3), undefined);
   assert.strictEqual(toolkit.reportLastCount(), 3);
   assert.strictEqual(toolkit.reportLastError(), 0);
 });
 
+test("communication blocks send chat messages", () => {
+  const agent = createMockAgent({ inventory: { 5: 9 } });
+  const player = createMockPlayer();
+  const { toolkit } = loadToolkit(agent, player);
+  toolkit.say("ready");
+  toolkit.sayInventorySlot(5);
+  assert.deepStrictEqual(player.messages, [
+    "Agent: ready",
+    "Agent: slot 5 has 9 items",
+  ]);
+});
+
+test("communication blocks report latest result and scan result", () => {
+  const agent = createMockAgent({
+    testBlocks: {
+      "11,64,20": WATER,
+      "10,64,21": STONE,
+    },
+  });
+  const player = createMockPlayer();
+  const { toolkit } = loadToolkit(agent, player);
+  toolkit.scanBlocksAround(1, 1, 0);
+  toolkit.sayScanResult(1);
+  toolkit.sayLastResult();
+  assert.deepStrictEqual(player.messages, [
+    "Agent: found 1 water",
+    "Agent: last count 1, error none",
+  ]);
+});
+
 test("backtrack restores facing with two turns on each side", () => {
   const agent = createMockAgent();
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.backtrack(2);
   assert.strictEqual(toolkit.reportLastCount(), 2);
   assert.strictEqual(agent.calls.filter((call) => call[0] === "turn").length, 4);
@@ -252,7 +296,7 @@ test("backtrack restores facing with two turns on each side", () => {
 
 test("strikeDirection attacks one selected direction repeatedly", () => {
   const agent = createMockAgent();
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.strikeDirection(0, 3);
   assert.strictEqual(toolkit.reportLastCount(), 3);
   assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.FORWARD).length, 3);
@@ -260,7 +304,7 @@ test("strikeDirection attacks one selected direction repeatedly", () => {
 
 test("direct direction blocks support back, left, right, up, and down", () => {
   const agent = createMockAgent({ left: STONE, up: STONE });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.strikeDirection(1, 2);
   assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.BACK).length, 2);
   toolkit.digDirection(2);
@@ -271,7 +315,7 @@ test("direct direction blocks support back, left, right, up, and down", () => {
 
 test("sweepAttack attacks the four horizontal directions", () => {
   const agent = createMockAgent();
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.sweepAttack(2);
   assert.strictEqual(toolkit.reportLastCount(), 8);
   assert(agent.calls.some((call) => call[0] === "attack" && call[1] === Direction.RIGHT));
@@ -281,7 +325,7 @@ test("sweepAttack attacks the four horizontal directions", () => {
 
 test("verticalCombo attacks down, forward, and up", () => {
   const agent = createMockAgent();
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.verticalCombo(1);
   assert.strictEqual(toolkit.reportLastCount(), 3);
   assert(agent.calls.some((call) => call[0] === "attack" && call[1] === Direction.DOWN));
@@ -290,7 +334,7 @@ test("verticalCombo attacks down, forward, and up", () => {
 
 test("chargeAttack attacks while advancing", () => {
   const agent = createMockAgent();
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.chargeAttack(2, 2);
   assert.strictEqual(toolkit.reportLastCount(), 4);
   assert.strictEqual(agent.calls.filter((call) => call[0] === "move" && call[1] === Direction.FORWARD).length, 2);
@@ -298,7 +342,7 @@ test("chargeAttack attacks while advancing", () => {
 
 test("lungeAttack attacks along a line and returns", () => {
   const agent = createMockAgent();
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.lungeAttack(3, 2);
   assert.strictEqual(toolkit.reportLastCount(), 6);
   assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.FORWARD).length, 6);
@@ -308,7 +352,7 @@ test("lungeAttack attacks along a line and returns", () => {
 
 test("retreatAttack attacks while backing away", () => {
   const agent = createMockAgent();
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.retreatAttack(2, 1);
   assert.strictEqual(toolkit.reportLastCount(), 2);
   assert.strictEqual(agent.calls.filter((call) => call[0] === "move" && call[1] === Direction.BACK).length, 2);
@@ -316,7 +360,7 @@ test("retreatAttack attacks while backing away", () => {
 
 test("guardArea attacks all adjacent directions by round", () => {
   const agent = createMockAgent();
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.guardArea(2, 1);
   assert.strictEqual(toolkit.reportLastCount(), 12);
   assert(agent.calls.some((call) => call[0] === "attack" && call[1] === Direction.DOWN));
@@ -324,7 +368,7 @@ test("guardArea attacks all adjacent directions by round", () => {
 
 test("emeraldPowerAttack spends one emerald for each five attacks", () => {
   const agent = createMockAgent({ inventory: { 4: 3 } });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.emeraldPowerAttack(1, 2, 4);
   assert.strictEqual(toolkit.reportLastCount(), 12);
   assert.strictEqual(toolkit.reportLastError(), 0);
@@ -341,7 +385,7 @@ test("emeraldPowerAttack spends one emerald for each five attacks", () => {
 
 test("emeraldPowerAttack stops when emerald charges run out", () => {
   const agent = createMockAgent({ inventory: { 4: 1 } });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.emeraldPowerAttack(1, 2, 4);
   assert.strictEqual(toolkit.reportLastCount(), 5);
   assert.strictEqual(toolkit.reportLastError(), 2);
@@ -350,7 +394,7 @@ test("emeraldPowerAttack stops when emerald charges run out", () => {
 
 test("digDirection destroys a selected adjacent block", () => {
   const agent = createMockAgent({ forward: STONE });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.digDirection(0);
   assert.strictEqual(toolkit.reportLastCount(), 1);
   assert(agent.calls.some((call) => call[0] === "destroy" && call[1] === Direction.FORWARD));
@@ -358,7 +402,7 @@ test("digDirection destroys a selected adjacent block", () => {
 
 test("drillLine digs, collects, and advances", () => {
   const agent = createMockAgent({ forward: STONE, afterMoveForward: STONE });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.drillLine(3);
   assert.strictEqual(toolkit.reportLastCount(), 3);
   assert(agent.calls.filter((call) => call[0] === "move" && call[1] === Direction.FORWARD).length >= 3);
@@ -367,7 +411,7 @@ test("drillLine digs, collects, and advances", () => {
 
 test("quarryTunnel clears a rectangular face then advances", () => {
   const agent = createMockAgent({ forward: STONE });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.quarryTunnel(2, 2, 2);
   assert.strictEqual(toolkit.reportLastCount(), 2);
   assert(agent.calls.some((call) => call[0] === "move" && call[1] === Direction.RIGHT));
@@ -376,7 +420,7 @@ test("quarryTunnel clears a rectangular face then advances", () => {
 
 test("stairMineDown advances forward and downward", () => {
   const agent = createMockAgent({ forward: STONE, down: STONE });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.stairMineDown(2);
   assert.strictEqual(toolkit.reportLastCount(), 2);
   assert(agent.calls.some((call) => call[0] === "move" && call[1] === Direction.DOWN));
@@ -384,7 +428,7 @@ test("stairMineDown advances forward and downward", () => {
 
 test("stripMine creates branches and preserves the total count", () => {
   const agent = createMockAgent({ forward: STONE, afterMoveForward: STONE });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.stripMine(2, 1, 1);
   assert.strictEqual(toolkit.reportLastCount(), 6);
   assert(agent.calls.filter((call) => call[0] === "turn").length >= 8);
@@ -400,7 +444,7 @@ test("clearDirtCube3 only destroys soil-like blocks while moving through the cub
     down: DIRT,
     afterMoveDown: AIR,
   });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.clearDirtCube3();
   assert(toolkit.reportLastCount() >= 1);
   assert(agent.calls.some((call) => call[0] === "inspect"));
@@ -409,7 +453,7 @@ test("clearDirtCube3 only destroys soil-like blocks while moving through the cub
 
 test("layPath uses selected slot and places below", () => {
   const agent = createMockAgent({ down: AIR, inventory: { 3: 3 }, afterMoveDown: AIR });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.layPath(3, 2);
   assert.strictEqual(toolkit.reportLastCount(), 2);
   assert(agent.calls.some((call) => call[0] === "setSlot" && call[1] === 3));
@@ -418,7 +462,7 @@ test("layPath uses selected slot and places below", () => {
 
 test("hasEnough reads the Agent inventory", () => {
   const agent = createMockAgent({ inventory: { 2: 12 } });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   assert.strictEqual(toolkit.hasEnough(2, 10), true);
   assert.strictEqual(toolkit.hasEnough(2, 13), false);
 });
@@ -431,7 +475,7 @@ test("scanBlocksAround counts water or lava in a configurable radius", () => {
       "10,64,21": STONE,
     },
   });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.scanBlocksAround(1, 1, 0);
   assert.strictEqual(toolkit.reportLastCount(), 1);
   assert.strictEqual(toolkit.scanFound(), true);
@@ -443,7 +487,7 @@ test("scanBlocksAround counts water or lava in a configurable radius", () => {
 
 test("mob selector helpers target animal and monster families around the Agent", () => {
   const agent = createMockAgent();
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   const passive = toolkit.passiveMobsNearAgent(7);
   const hostile = toolkit.hostileMobsNearAgent(9);
   assert.strictEqual(passive.radius, 7);
@@ -455,7 +499,7 @@ test("mob selector helpers target animal and monster families around the Agent",
 
 test("buildPlatform snakes across rows", () => {
   const agent = createMockAgent({ down: AIR, inventory: { 1: 6 }, afterMoveDown: AIR });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.buildPlatform(1, 2, 2);
   assert.strictEqual(toolkit.reportLastCount(), 4);
   assert(agent.calls.some((call) => call[0] === "move" && call[1] === Direction.RIGHT));
@@ -464,7 +508,7 @@ test("buildPlatform snakes across rows", () => {
 
 test("buildBridge places below when crossing a gap", () => {
   const agent = createMockAgent({ down: AIR, inventory: { 1: 4 }, afterMoveDown: AIR });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.buildBridge(1, 2, 1);
   assert.strictEqual(toolkit.reportLastCount(), 2);
   assert.strictEqual(agent.calls.filter((call) => call[0] === "place" && call[1] === Direction.DOWN).length, 2);
@@ -472,7 +516,7 @@ test("buildBridge places below when crossing a gap", () => {
 
 test("buildBridge stops when out of blocks", () => {
   const agent = createMockAgent({ down: AIR, inventory: { 1: 1 }, afterMoveDown: AIR });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.buildBridge(1, 3, 1);
   assert.strictEqual(toolkit.reportLastCount(), 1);
   assert.strictEqual(toolkit.reportLastError(), 2);
@@ -480,7 +524,7 @@ test("buildBridge stops when out of blocks", () => {
 
 test("buildWall places forward while moving sideways and upward", () => {
   const agent = createMockAgent({ inventory: { 1: 9 } });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.buildWall(1, 3, 2);
   assert.strictEqual(toolkit.reportLastCount(), 6);
   assert.strictEqual(agent.calls.filter((call) => call[0] === "place" && call[1] === Direction.FORWARD).length, 6);
@@ -489,7 +533,7 @@ test("buildWall places forward while moving sideways and upward", () => {
 
 test("fillBox builds layered volumes", () => {
   const agent = createMockAgent({ down: AIR, inventory: { 1: 16 }, afterMoveDown: AIR });
-  const toolkit = loadToolkit(agent);
+  const { toolkit } = loadToolkit(agent);
   toolkit.fillBox(1, 2, 2, 2);
   assert.strictEqual(toolkit.reportLastCount(), 8);
   assert(agent.calls.some((call) => call[0] === "move" && call[1] === Direction.UP));

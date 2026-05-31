@@ -10,6 +10,10 @@ Action blocks are statement-style blocks, so they connect in a command stack. Us
 
 - `agent last error`
 - `agent last count`
+- `agent say ...`
+- `agent report last result`
+- `agent report scan result`
+- `agent report inventory slot ...`
 - `agent has at least ... items in slot ...`
 - `agent scan any block/water/lava around radius ... height ...`
 - `agent scan found target`
@@ -50,6 +54,8 @@ Action blocks are statement-style blocks, so they connect in a command stack. Us
 - `invalid input`
 
 Mob detection blocks return target selectors. Use them with MakeCode `mobs` blocks such as teleport, effect, kill, or execute. MakeCode target selectors do not provide a clean count/boolean result, so block scans use `agent last count`, while mob selectors are passed into other mob actions.
+
+Communication blocks send chat messages with `player.say`, so students can see what the Agent did without using world commands. Use them after scans, mining, building, or inventory checks to debug a lesson step by step.
 
 `agent emerald power attack all directions` attacks forward, right, back, left, up, and down. Put emeralds in the selected Agent inventory slot before running it. The block drops one emerald behind the Agent for each five attacks, which removes it from the Agent inventory without using world commands. If the selected slot runs out, the action stops and `agent last error` becomes `no item`.
 

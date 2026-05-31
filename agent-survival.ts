@@ -81,6 +81,33 @@ namespace agentSurvival {
         lastError = error
     }
 
+    function errorText(error: AgentSurvivalError): string {
+        if (error == AgentSurvivalError.Blocked) {
+            return "blocked"
+        }
+        if (error == AgentSurvivalError.NoItem) {
+            return "no item"
+        }
+        if (error == AgentSurvivalError.InvalidInput) {
+            return "invalid input"
+        }
+        return "none"
+    }
+
+    function scanTargetText(target: AgentSurvivalScanTarget): string {
+        if (target == AgentSurvivalScanTarget.Water) {
+            return "water"
+        }
+        if (target == AgentSurvivalScanTarget.Lava) {
+            return "lava"
+        }
+        return "any block"
+    }
+
+    function speakStatus(message: string) {
+        player.say("Agent: " + message)
+    }
+
     function blockAt(direction: number): number {
         return agent.inspect(AgentInspection.Block, direction)
     }
@@ -327,6 +354,49 @@ namespace agentSurvival {
     //% group="Status"
     export function reportLastCount(): number {
         return lastCount
+    }
+
+    /**
+     * Send a chat message from the Agent to the player.
+     */
+    //% blockId=agent_survival_say block="agent say %message"
+    //% message.defl="ready"
+    //% group="Communication"
+    export function say(message: string) {
+        speakStatus(message)
+    }
+
+    /**
+     * Report the most recent Agent Survival result in chat.
+     */
+    //% blockId=agent_survival_say_last_result block="agent report last result"
+    //% group="Communication"
+    export function sayLastResult() {
+        speakStatus("last count " + lastCount + ", error " + errorText(lastError))
+    }
+
+    /**
+     * Report the most recent scan result in chat.
+     */
+    //% blockId=agent_survival_say_scan_result block="agent report scan result for %target"
+    //% group="Communication"
+    export function sayScanResult(target: AgentSurvivalScanTarget) {
+        if (lastCount > 0) {
+            speakStatus("found " + lastCount + " " + scanTargetText(target))
+        } else {
+            speakStatus("found no " + scanTargetText(target))
+        }
+    }
+
+    /**
+     * Report how many items the Agent has in one inventory slot.
+     */
+    //% blockId=agent_survival_say_inventory_slot block="agent report inventory slot %slot"
+    //% slot.min=1 slot.max=27
+    //% group="Communication"
+    export function sayInventorySlot(slot: number) {
+        slot = clamp(slot, 1, 27)
+        speakStatus("slot " + slot + " has " + agent.getItemCount(slot) + " items")
     }
 
     /**
