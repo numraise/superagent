@@ -42,6 +42,23 @@ enum AgentSurvivalScanTarget {
     Lava = 2
 }
 
+enum AgentSurvivalSignal {
+    //% block="ready"
+    Ready = 0,
+    //% block="success"
+    Success = 1,
+    //% block="found"
+    Found = 2,
+    //% block="empty"
+    Empty = 3,
+    //% block="blocked"
+    Blocked = 4,
+    //% block="no item"
+    NoItem = 5,
+    //% block="invalid input"
+    InvalidInput = 6
+}
+
 /**
  * Advanced workflow blocks for the Minecraft Education Agent in survival play.
  */
@@ -79,33 +96,6 @@ namespace agentSurvival {
 
     function remember(error: AgentSurvivalError) {
         lastError = error
-    }
-
-    function errorText(error: AgentSurvivalError): string {
-        if (error == AgentSurvivalError.Blocked) {
-            return "blocked"
-        }
-        if (error == AgentSurvivalError.NoItem) {
-            return "no item"
-        }
-        if (error == AgentSurvivalError.InvalidInput) {
-            return "invalid input"
-        }
-        return "none"
-    }
-
-    function scanTargetText(target: AgentSurvivalScanTarget): string {
-        if (target == AgentSurvivalScanTarget.Water) {
-            return "water"
-        }
-        if (target == AgentSurvivalScanTarget.Lava) {
-            return "lava"
-        }
-        return "any block"
-    }
-
-    function speakStatus(message: string) {
-        player.say("Agent: " + message)
     }
 
     function blockAt(direction: number): number {
@@ -210,6 +200,67 @@ namespace agentSurvival {
             return DOWN
         }
         return FORWARD
+    }
+
+    function signalFromError(error: AgentSurvivalError): AgentSurvivalSignal {
+        if (error == AgentSurvivalError.Blocked) {
+            return AgentSurvivalSignal.Blocked
+        }
+        if (error == AgentSurvivalError.NoItem) {
+            return AgentSurvivalSignal.NoItem
+        }
+        if (error == AgentSurvivalError.InvalidInput) {
+            return AgentSurvivalSignal.InvalidInput
+        }
+        return AgentSurvivalSignal.Success
+    }
+
+    function signalDirection(signal: AgentSurvivalSignal): number {
+        if (signal == AgentSurvivalSignal.Blocked) {
+            return LEFT
+        }
+        if (signal == AgentSurvivalSignal.NoItem) {
+            return BACK
+        }
+        if (signal == AgentSurvivalSignal.InvalidInput) {
+            return RIGHT
+        }
+        if (signal == AgentSurvivalSignal.Empty) {
+            return DOWN
+        }
+        if (signal == AgentSurvivalSignal.Found) {
+            return UP
+        }
+        return FORWARD
+    }
+
+    function gestureSignal(signal: AgentSurvivalSignal) {
+        if (signal == AgentSurvivalSignal.Blocked) {
+            agent.turn(TurnDirection.Left)
+            agent.turn(TurnDirection.Left)
+            return
+        }
+        if (signal == AgentSurvivalSignal.NoItem) {
+            agent.turn(TurnDirection.Right)
+            agent.turn(TurnDirection.Right)
+            return
+        }
+        if (signal == AgentSurvivalSignal.InvalidInput) {
+            agent.turn(TurnDirection.Left)
+            agent.turn(TurnDirection.Right)
+            agent.turn(TurnDirection.Left)
+            agent.turn(TurnDirection.Right)
+            return
+        }
+        if (signal == AgentSurvivalSignal.Empty) {
+            agent.attack(DOWN)
+            return
+        }
+        if (signal == AgentSurvivalSignal.Found) {
+            agent.attack(UP)
+            return
+        }
+        agent.attack(FORWARD)
     }
 
     function placeIfEmpty(direction: number, slot: number): boolean {
@@ -357,46 +408,108 @@ namespace agentSurvival {
     }
 
     /**
-     * Send a chat message from the Agent to the player.
+     * Make a visible Agent gesture that works in Member + Survival worlds.
      */
-    //% blockId=agent_survival_say block="agent say %message"
-    //% message.defl="ready"
+    //% blockId=agent_survival_signal block="agent signal %signal"
     //% group="Communication"
-    export function say(message: string) {
-        speakStatus(message)
+    export function signal(signal: AgentSurvivalSignal) {
+        resetResult()
+        gestureSignal(signal)
+        lastCount = 1
     }
 
     /**
-     * Report the most recent Agent Survival result in chat.
+     * Mark a signal by placing one marker block from the selected Agent slot. Direction shows the signal.
      */
-    //% blockId=agent_survival_say_last_result block="agent report last result"
+    //% blockId=agent_survival_mark_signal block="agent mark %signal using slot %slot"
+    //% slot.min=1 slot.max=27
     //% group="Communication"
-    export function sayLastResult() {
-        speakStatus("last count " + lastCount + ", error " + errorText(lastError))
-    }
-
-    /**
-     * Report the most recent scan result in chat.
-     */
-    //% blockId=agent_survival_say_scan_result block="agent report scan result for %target"
-    //% group="Communication"
-    export function sayScanResult(target: AgentSurvivalScanTarget) {
-        if (lastCount > 0) {
-            speakStatus("found " + lastCount + " " + scanTargetText(target))
-        } else {
-            speakStatus("found no " + scanTargetText(target))
+    export function markSignal(signal: AgentSurvivalSignal, slot: number) {
+        resetResult()
+        slot = clamp(slot, 1, 27)
+        let direction = signalDirection(signal)
+        if (agent.detect(AgentDetection.Block, direction)) {
+            remember(AgentSurvivalError.Blocked)
+            return
+        }
+        if (placeIfEmpty(direction, slot)) {
+            lastCount = 1
         }
     }
 
     /**
-     * Report how many items the Agent has in one inventory slot.
+     * Mark the most recent Agent Survival result with a marker block from the selected Agent slot.
+     */
+    //% blockId=agent_survival_mark_last_result block="agent mark last result using slot %slot"
+    //% slot.min=1 slot.max=27
+    //% group="Communication"
+    export function markLastResult(slot: number) {
+        markSignal(signalFromError(lastError), slot)
+    }
+
+    /**
+     * Mark the most recent scan result with a marker block from the selected Agent slot.
+     */
+    //% blockId=agent_survival_mark_scan_result block="agent mark scan result using slot %slot"
+    //% slot.min=1 slot.max=27
+    //% group="Communication"
+    export function markScanResult(slot: number) {
+        markSignal(lastCount > 0 ? AgentSurvivalSignal.Found : AgentSurvivalSignal.Empty, slot)
+    }
+
+    /**
+     * Mark whether an Agent inventory slot has enough items.
+     */
+    //% blockId=agent_survival_mark_inventory_check block="agent mark inventory slot %checkSlot has at least %amount using marker slot %markerSlot"
+    //% checkSlot.min=1 checkSlot.max=27 amount.min=1 amount.max=64 markerSlot.min=1 markerSlot.max=27
+    //% group="Communication"
+    export function markInventoryCheck(checkSlot: number, amount: number, markerSlot: number) {
+        checkSlot = clamp(checkSlot, 1, 27)
+        amount = clamp(amount, 1, 64)
+        markSignal(hasEnough(checkSlot, amount) ? AgentSurvivalSignal.Success : AgentSurvivalSignal.NoItem, markerSlot)
+    }
+
+    /**
+     * Compatibility block. In Member + Survival it uses an Agent ready gesture instead of chat.
+     */
+    //% blockId=agent_survival_say block="agent say %message"
+    //% message.defl="ready"
+    //% group="Communication"
+    //% deprecated=true
+    export function say(message: string) {
+        signal(AgentSurvivalSignal.Ready)
+    }
+
+    /**
+     * Compatibility block. In Member + Survival it gestures the result instead of chat.
+     */
+    //% blockId=agent_survival_say_last_result block="agent report last result"
+    //% group="Communication"
+    //% deprecated=true
+    export function sayLastResult() {
+        signal(signalFromError(lastError))
+    }
+
+    /**
+     * Compatibility block. In Member + Survival it gestures found/empty instead of chat.
+     */
+    //% blockId=agent_survival_say_scan_result block="agent report scan result for %target"
+    //% group="Communication"
+    //% deprecated=true
+    export function sayScanResult(target: AgentSurvivalScanTarget) {
+        signal(lastCount > 0 ? AgentSurvivalSignal.Found : AgentSurvivalSignal.Empty)
+    }
+
+    /**
+     * Compatibility block. In Member + Survival it gestures success/no item instead of chat.
      */
     //% blockId=agent_survival_say_inventory_slot block="agent report inventory slot %slot"
     //% slot.min=1 slot.max=27
     //% group="Communication"
+    //% deprecated=true
     export function sayInventorySlot(slot: number) {
         slot = clamp(slot, 1, 27)
-        speakStatus("slot " + slot + " has " + agent.getItemCount(slot) + " items")
+        signal(hasEnough(slot, 1) ? AgentSurvivalSignal.Success : AgentSurvivalSignal.NoItem)
     }
 
     /**

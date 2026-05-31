@@ -10,10 +10,11 @@ Action blocks are statement-style blocks, so they connect in a command stack. Us
 
 - `agent last error`
 - `agent last count`
-- `agent say ...`
-- `agent report last result`
-- `agent report scan result`
-- `agent report inventory slot ...`
+- `agent signal ready/success/found/empty/blocked/no item/invalid input`
+- `agent mark signal using slot ...`
+- `agent mark last result using slot ...`
+- `agent mark scan result using slot ...`
+- `agent mark inventory check using marker slot ...`
 - `agent has at least ... items in slot ...`
 - `agent scan any block/water/lava around radius ... height ...`
 - `agent scan found target`
@@ -53,9 +54,9 @@ Action blocks are statement-style blocks, so they connect in a command stack. Us
 - `no item`
 - `invalid input`
 
-Mob detection blocks return target selectors. Use them with MakeCode `mobs` blocks such as teleport, effect, kill, or execute. MakeCode target selectors do not provide a clean count/boolean result, so block scans use `agent last count`, while mob selectors are passed into other mob actions.
+Mob detection blocks return target selectors. For Member + Survival lessons, use them only with blocks that your world permissions allow. Avoid command-like mob actions such as teleport, effect, kill, or execute unless the host has explicitly allowed them. MakeCode target selectors do not provide a clean count/boolean result, so block scans use `agent last count`, while mob selectors are passed into other allowed mob actions.
 
-Communication blocks send chat messages with `player.say`, so students can see what the Agent did without using world commands. Use them after scans, mining, building, or inventory checks to debug a lesson step by step.
+Communication blocks avoid chat and world commands so they work for Member + Survival players. `agent signal ...` uses Agent gestures. `agent mark ...` places one marker block from the selected Agent inventory slot: forward means success/ready, up means found, down means empty, left means blocked, back means no item, and right means invalid input.
 
 `agent emerald power attack all directions` attacks forward, right, back, left, up, and down. Put emeralds in the selected Agent inventory slot before running it. The block drops one emerald behind the Agent for each five attacks, which removes it from the Agent inventory without using world commands. If the selected slot runs out, the action stops and `agent last error` becomes `no item`.
 

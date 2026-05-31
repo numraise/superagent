@@ -46,17 +46,14 @@ function transformMakeCodeTs(source) {
     })
     .replace(/namespace\s+agentSurvival\s*\{/, "const agentSurvival = (() => {\n")
     .replace(/export\s+function\s+(\w+)\s*\(/g, "function $1(")
-    .replace(/\)\s*:\s*(number|boolean|string|AgentSurvivalError|AgentSurvivalAxis|AgentSurvivalDirection|AgentSurvivalScanTarget|Position|TargetSelector)\s*\{/g, ") {")
-    .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|AgentSurvivalError|AgentSurvivalAxis|AgentSurvivalDirection|AgentSurvivalScanTarget|Position|TargetSelector)/g, "$1$2")
+    .replace(/\)\s*:\s*(number|boolean|string|AgentSurvivalError|AgentSurvivalAxis|AgentSurvivalDirection|AgentSurvivalScanTarget|AgentSurvivalSignal|Position|TargetSelector)\s*\{/g, ") {")
+    .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|AgentSurvivalError|AgentSurvivalAxis|AgentSurvivalDirection|AgentSurvivalScanTarget|AgentSurvivalSignal|Position|TargetSelector)/g, "$1$2")
     .replace(/\bconst\s+([A-Z][A-Z0-9_]*)\s*=/g, "const $1 =");
 
   const privateNames = new Set([
     "clamp",
     "resetResult",
     "remember",
-    "errorText",
-    "scanTargetText",
-    "speakStatus",
     "blockAt",
     "offsetFromAgent",
     "scanMatches",
@@ -68,6 +65,9 @@ function transformMakeCodeTs(source) {
     "moveThrough",
     "axisDirection",
     "directDirection",
+    "signalFromError",
+    "signalDirection",
+    "gestureSignal",
     "placeIfEmpty",
     "moveAndPlaceLine",
     "backtrackInternal",
@@ -91,6 +91,7 @@ globalThis.AgentSurvivalError = AgentSurvivalError;
 globalThis.AgentSurvivalAxis = AgentSurvivalAxis;
 globalThis.AgentSurvivalDirection = AgentSurvivalDirection;
 globalThis.AgentSurvivalScanTarget = AgentSurvivalScanTarget;
+globalThis.AgentSurvivalSignal = AgentSurvivalSignal;
 ${js.slice(lastBrace + 1)}`;
 }
 
@@ -172,21 +173,10 @@ function createMockAgent(options = {}) {
   return agent;
 }
 
-function createMockPlayer() {
-  const messages = [];
-  return {
-    messages,
-    say(message) {
-      messages.push(message);
-    },
-  };
-}
-
-function loadToolkit(agent, player = createMockPlayer()) {
+function loadToolkit(agent) {
   const source = fs.readFileSync(SOURCE, "utf8");
   const sandbox = {
     agent,
-    player,
     blocks: {
       testForBlock(block, position) {
         const key = `${position.x},${position.y},${position.z}`;
@@ -235,7 +225,7 @@ function loadToolkit(agent, player = createMockPlayer()) {
   };
   vm.createContext(sandbox);
   vm.runInContext(transformMakeCodeTs(source), sandbox, { filename: "agent-survival.ts" });
-  return { toolkit: sandbox.globalThis.agentSurvival, player };
+  return { toolkit: sandbox.globalThis.agentSurvival };
 }
 
 function test(name, fn) {
@@ -256,34 +246,42 @@ test("acting commands expose statement-style void APIs", () => {
   assert.strictEqual(toolkit.reportLastError(), 0);
 });
 
-test("communication blocks send chat messages", () => {
+test("communication blocks use Agent gestures without chat", () => {
   const agent = createMockAgent({ inventory: { 5: 9 } });
-  const player = createMockPlayer();
-  const { toolkit } = loadToolkit(agent, player);
-  toolkit.say("ready");
+  const { toolkit } = loadToolkit(agent);
+  toolkit.signal(0);
+  assert.strictEqual(toolkit.reportLastCount(), 1);
+  assert(agent.calls.some((call) => call[0] === "attack" && call[1] === Direction.FORWARD));
   toolkit.sayInventorySlot(5);
-  assert.deepStrictEqual(player.messages, [
-    "Agent: ready",
-    "Agent: slot 5 has 9 items",
-  ]);
+  assert(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.FORWARD).length >= 2);
 });
 
-test("communication blocks report latest result and scan result", () => {
+test("communication marker blocks place directional status markers", () => {
   const agent = createMockAgent({
+    forward: AIR,
+    up: AIR,
+    back: AIR,
+    inventory: { 5: 9 },
     testBlocks: {
       "11,64,20": WATER,
       "10,64,21": STONE,
     },
   });
-  const player = createMockPlayer();
-  const { toolkit } = loadToolkit(agent, player);
+  const { toolkit } = loadToolkit(agent);
   toolkit.scanBlocksAround(1, 1, 0);
-  toolkit.sayScanResult(1);
-  toolkit.sayLastResult();
-  assert.deepStrictEqual(player.messages, [
-    "Agent: found 1 water",
-    "Agent: last count 1, error none",
-  ]);
+  toolkit.markScanResult(5);
+  assert(agent.calls.some((call) => call[0] === "place" && call[1] === Direction.UP));
+  toolkit.markInventoryCheck(5, 20, 5);
+  assert(agent.calls.some((call) => call[0] === "place" && call[1] === Direction.BACK));
+});
+
+test("communication marker blocks report blocked marker spaces", () => {
+  const agent = createMockAgent({ forward: STONE, inventory: { 5: 2 } });
+  const { toolkit } = loadToolkit(agent);
+  toolkit.markSignal(1, 5);
+  assert.strictEqual(toolkit.reportLastCount(), 0);
+  assert.strictEqual(toolkit.reportLastError(), 1);
+  assert(!agent.calls.some((call) => call[0] === "place"));
 });
 
 test("backtrack restores facing with two turns on each side", () => {
