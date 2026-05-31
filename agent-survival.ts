@@ -18,6 +18,21 @@ enum AgentSurvivalAxis {
     Up = 2
 }
 
+enum AgentSurvivalDirection {
+    //% block="forward"
+    Forward = 0,
+    //% block="back"
+    Back = 1,
+    //% block="left"
+    Left = 2,
+    //% block="right"
+    Right = 3,
+    //% block="up"
+    Up = 4,
+    //% block="down"
+    Down = 5
+}
+
 enum AgentSurvivalScanTarget {
     //% block="any block"
     AnyBlock = 0,
@@ -149,6 +164,25 @@ namespace agentSurvival {
             return negative ? DOWN : UP
         }
         return negative ? BACK : FORWARD
+    }
+
+    function directDirection(direction: AgentSurvivalDirection): number {
+        if (direction == AgentSurvivalDirection.Back) {
+            return BACK
+        }
+        if (direction == AgentSurvivalDirection.Left) {
+            return LEFT
+        }
+        if (direction == AgentSurvivalDirection.Right) {
+            return RIGHT
+        }
+        if (direction == AgentSurvivalDirection.Up) {
+            return UP
+        }
+        if (direction == AgentSurvivalDirection.Down) {
+            return DOWN
+        }
+        return FORWARD
     }
 
     function placeIfEmpty(direction: number, slot: number): boolean {
@@ -395,14 +429,25 @@ namespace agentSurvival {
     }
 
     /**
-     * Attack one direction multiple times.
+     * Attack one direct direction multiple times.
+     */
+    //% blockId=agent_survival_strike_direction block="agent strike %direction hits %hits"
+    //% hits.min=1 hits.max=32
+    //% group="Combat"
+    export function strikeDirection(direction: AgentSurvivalDirection, hits: number) {
+        resetResult()
+        attackDirection(directDirection(direction), hits)
+    }
+
+    /**
+     * Attack one axis direction multiple times.
      */
     //% blockId=agent_survival_strike_axis block="agent strike %axis negative %negative hits %hits"
     //% hits.min=1 hits.max=32
     //% group="Combat"
+    //% deprecated=true
     export function strikeAxis(axis: AgentSurvivalAxis, negative: boolean, hits: number) {
-        resetResult()
-        attackDirection(axisDirection(axis, negative), hits)
+        strikeDirection(axisDirection(axis, negative), hits)
     }
 
     /**
@@ -529,15 +574,25 @@ namespace agentSurvival {
     }
 
     /**
+     * Dig one block in the selected direct direction.
+     */
+    //% blockId=agent_survival_dig_direction block="agent dig %direction"
+    //% group="Mining"
+    export function digDirection(direction: AgentSurvivalDirection) {
+        resetResult()
+        if (destroyIfPresent(directDirection(direction))) {
+            lastCount = 1
+        }
+    }
+
+    /**
      * Dig one block in the selected axis and direction.
      */
     //% blockId=agent_survival_dig_axis block="agent dig %axis negative %negative"
     //% group="Mining"
+    //% deprecated=true
     export function digAxis(axis: AgentSurvivalAxis, negative: boolean) {
-        resetResult()
-        if (destroyIfPresent(axisDirection(axis, negative))) {
-            lastCount = 1
-        }
+        digDirection(axisDirection(axis, negative))
     }
 
     /**

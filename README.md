@@ -18,7 +18,7 @@ Action blocks are statement-style blocks, so they connect in a command stack. Us
 - `agent collect drops`
 - `agent stride forward`
 - `agent backtrack`
-- `agent strike forward/right/up negative ...`
+- `agent strike forward/back/left/right/up/down`
 - `agent sweep attack`
 - `agent vertical combo`
 - `agent charge attack`
@@ -26,7 +26,7 @@ Action blocks are statement-style blocks, so they connect in a command stack. Us
 - `agent retreat attack`
 - `agent guard area`
 - `agent emerald power attack all directions`
-- `agent dig forward/right/up negative ...`
+- `agent dig forward/back/left/right/up/down`
 - `agent drill line`
 - `agent quarry tunnel`
 - `agent stair mine down`

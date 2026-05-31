@@ -46,8 +46,8 @@ function transformMakeCodeTs(source) {
     })
     .replace(/namespace\s+agentSurvival\s*\{/, "const agentSurvival = (() => {\n")
     .replace(/export\s+function\s+(\w+)\s*\(/g, "function $1(")
-    .replace(/\)\s*:\s*(number|boolean|AgentSurvivalError|AgentSurvivalAxis|AgentSurvivalScanTarget|Position|TargetSelector)\s*\{/g, ") {")
-    .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|AgentSurvivalError|AgentSurvivalAxis|AgentSurvivalScanTarget|Position|TargetSelector)/g, "$1$2")
+    .replace(/\)\s*:\s*(number|boolean|AgentSurvivalError|AgentSurvivalAxis|AgentSurvivalDirection|AgentSurvivalScanTarget|Position|TargetSelector)\s*\{/g, ") {")
+    .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|AgentSurvivalError|AgentSurvivalAxis|AgentSurvivalDirection|AgentSurvivalScanTarget|Position|TargetSelector)/g, "$1$2")
     .replace(/\bconst\s+([A-Z][A-Z0-9_]*)\s*=/g, "const $1 =");
 
   const privateNames = new Set([
@@ -64,6 +64,7 @@ function transformMakeCodeTs(source) {
     "destroySoilIfPresent",
     "moveThrough",
     "axisDirection",
+    "directDirection",
     "placeIfEmpty",
     "moveAndPlaceLine",
     "backtrackInternal",
@@ -85,6 +86,7 @@ return { ${exportNames.join(", ")} };
 globalThis.agentSurvival = agentSurvival;
 globalThis.AgentSurvivalError = AgentSurvivalError;
 globalThis.AgentSurvivalAxis = AgentSurvivalAxis;
+globalThis.AgentSurvivalDirection = AgentSurvivalDirection;
 globalThis.AgentSurvivalScanTarget = AgentSurvivalScanTarget;
 ${js.slice(lastBrace + 1)}`;
 }
@@ -248,12 +250,23 @@ test("backtrack restores facing with two turns on each side", () => {
   assert.strictEqual(agent.calls.filter((call) => call[0] === "turn").length, 4);
 });
 
-test("strikeAxis attacks one selected direction repeatedly", () => {
+test("strikeDirection attacks one selected direction repeatedly", () => {
   const agent = createMockAgent();
   const toolkit = loadToolkit(agent);
-  toolkit.strikeAxis(0, false, 3);
+  toolkit.strikeDirection(0, 3);
   assert.strictEqual(toolkit.reportLastCount(), 3);
   assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.FORWARD).length, 3);
+});
+
+test("direct direction blocks support back, left, right, up, and down", () => {
+  const agent = createMockAgent({ left: STONE, up: STONE });
+  const toolkit = loadToolkit(agent);
+  toolkit.strikeDirection(1, 2);
+  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.BACK).length, 2);
+  toolkit.digDirection(2);
+  assert(agent.calls.some((call) => call[0] === "destroy" && call[1] === Direction.LEFT));
+  toolkit.digDirection(4);
+  assert(agent.calls.some((call) => call[0] === "destroy" && call[1] === Direction.UP));
 });
 
 test("sweepAttack attacks the four horizontal directions", () => {
@@ -335,10 +348,10 @@ test("emeraldPowerAttack stops when emerald charges run out", () => {
   assert.strictEqual(agent.calls.filter((call) => call[0] === "drop").length, 1);
 });
 
-test("digAxis destroys a selected adjacent block", () => {
+test("digDirection destroys a selected adjacent block", () => {
   const agent = createMockAgent({ forward: STONE });
   const toolkit = loadToolkit(agent);
-  toolkit.digAxis(0, false);
+  toolkit.digDirection(0);
   assert.strictEqual(toolkit.reportLastCount(), 1);
   assert(agent.calls.some((call) => call[0] === "destroy" && call[1] === Direction.FORWARD));
 });
