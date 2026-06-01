@@ -257,9 +257,11 @@ test("communication blocks use Agent gestures without chat", () => {
   const { toolkit } = loadToolkit(agent);
   toolkit.signal(0);
   assert.strictEqual(toolkit.reportLastCount(), 1);
-  assert(agent.calls.some((call) => call[0] === "attack" && call[1] === Direction.FORWARD));
+  assert(agent.calls.some((call) => call[0] === "turn"));
+  assert(!agent.calls.some((call) => call[0] === "attack"));
   toolkit.sayInventorySlot(5);
-  assert(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.FORWARD).length >= 2);
+  assert(agent.calls.filter((call) => call[0] === "turn").length >= 2);
+  assert(!agent.calls.some((call) => call[0] === "attack"));
 });
 
 test("easy show blocks use readable gestures without marker blocks", () => {

@@ -235,32 +235,7 @@ namespace agentSurvival {
     }
 
     function gestureSignal(signal: AgentSurvivalSignal) {
-        if (signal == AgentSurvivalSignal.Blocked) {
-            agent.turn(TurnDirection.Left)
-            agent.turn(TurnDirection.Left)
-            return
-        }
-        if (signal == AgentSurvivalSignal.NoItem) {
-            agent.turn(TurnDirection.Right)
-            agent.turn(TurnDirection.Right)
-            return
-        }
-        if (signal == AgentSurvivalSignal.InvalidInput) {
-            agent.turn(TurnDirection.Left)
-            agent.turn(TurnDirection.Right)
-            agent.turn(TurnDirection.Left)
-            agent.turn(TurnDirection.Right)
-            return
-        }
-        if (signal == AgentSurvivalSignal.Empty) {
-            agent.attack(DOWN)
-            return
-        }
-        if (signal == AgentSurvivalSignal.Found) {
-            agent.attack(UP)
-            return
-        }
-        agent.attack(FORWARD)
+        showSignalGesture(signal)
     }
 
     function clearGesture() {
