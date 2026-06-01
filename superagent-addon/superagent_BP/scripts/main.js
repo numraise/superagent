@@ -127,10 +127,6 @@ function configureSuperagent(superagent, player) {
   superagent.nameTag = DISPLAY_NAME;
   superagent.addTag(ROOT_TAG);
   superagent.addTag(ownerTag(player));
-  superagent.addEffect("invisibility", 200, {
-    amplifier: 1,
-    showParticles: false
-  });
   superagent.addEffect("resistance", 200, {
     amplifier: 255,
     showParticles: false

@@ -178,7 +178,7 @@ test("extension and visible add-on names use the same release version", () => {
   assert(rp.header.name.includes(packageJson.version));
 });
 
-test("superagent entity is invisible-helper friendly, persistent, non-monster, and invulnerable", () => {
+test("superagent entity is aura-helper friendly, persistent, non-monster, and invulnerable", () => {
   const entity = readJson(path.join(ADDON, "superagent_BP", "entities", "superagent.json"));
   const components = entity["minecraft:entity"].components;
   assert.strictEqual(entity["minecraft:entity"].description.identifier, "superagent:superagent");
@@ -192,6 +192,18 @@ test("superagent entity is invisible-helper friendly, persistent, non-monster, a
   assert.strictEqual(components["minecraft:physics"].has_collision, false);
   assert.strictEqual(components["minecraft:physics"].has_gravity, false);
   assert.strictEqual(components["minecraft:nameable"].always_show, true);
+  assert.strictEqual(components["minecraft:scale"].value, 1.0);
+});
+
+test("superagent resource pack renders a visible aura marker model", () => {
+  const geometry = readJson(path.join(ADDON, "superagent_RP", "models", "entity", "superagent.geo.json"));
+  const texture = fs.statSync(path.join(ADDON, "superagent_RP", "textures", "entity", "superagent.png"));
+  const description = geometry["minecraft:geometry"][0].description;
+  const cubes = geometry["minecraft:geometry"][0].bones[0].cubes;
+  assert.strictEqual(description.visible_bounds_width, 3);
+  assert.strictEqual(description.visible_bounds_height, 3);
+  assert(cubes.length >= 5);
+  assert(texture.size > 100);
 });
 
 test("superagent script follows Education Agent and protects the managed mob", () => {
@@ -224,5 +236,6 @@ test("superagent script emits a visible presence effect while following the Agen
   assert(script.includes("function spawnParticleAny"));
   assert(script.includes('"minecraft:totem_particle"'));
   assert(script.includes('superagent.addEffect("strength"'));
+  assert(!script.includes('superagent.addEffect("invisibility"'));
   assert(script.includes("emitPresenceParticles(superagent.dimension, superagent.location, tick)"));
 });

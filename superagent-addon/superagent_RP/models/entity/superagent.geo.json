@@ -6,9 +6,9 @@
         "identifier": "geometry.superagent",
         "texture_width": 16,
         "texture_height": 16,
-        "visible_bounds_width": 0.1,
-        "visible_bounds_height": 0.1,
-        "visible_bounds_offset": [0, 0, 0]
+        "visible_bounds_width": 3,
+        "visible_bounds_height": 3,
+        "visible_bounds_offset": [0, 1, 0]
       },
       "bones": [
         {
@@ -16,8 +16,28 @@
           "pivot": [0, 0, 0],
           "cubes": [
             {
-              "origin": [-0.5, 0, -0.5],
-              "size": [1, 1, 1],
+              "origin": [-10, 2, -0.25],
+              "size": [20, 1, 0.5],
+              "uv": [0, 0]
+            },
+            {
+              "origin": [-0.25, 2, -10],
+              "size": [0.5, 1, 20],
+              "uv": [0, 0]
+            },
+            {
+              "origin": [-8, 16, -0.25],
+              "size": [16, 1, 0.5],
+              "uv": [0, 0]
+            },
+            {
+              "origin": [-0.25, 16, -8],
+              "size": [0.5, 1, 16],
+              "uv": [0, 0]
+            },
+            {
+              "origin": [-0.5, 4, -0.5],
+              "size": [1, 14, 1],
               "uv": [0, 0]
             }
           ]

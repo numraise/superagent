@@ -23,7 +23,7 @@
       },
       "minecraft:collision_box": {
         "width": 0.1,
-        "height": 0.1
+        "height": 1.8
       },
       "minecraft:movement": {
         "value": 0.0
@@ -46,7 +46,7 @@
       },
       "minecraft:persistent": {},
       "minecraft:scale": {
-        "value": 0.01
+        "value": 1.0
       }
     }
   }

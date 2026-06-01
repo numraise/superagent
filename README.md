@@ -1,12 +1,11 @@
 # superagent
 
-Minecraft Education 1.21.133 add-on and MakeCode extension for an invisible Agent helper named `superagent`.
+Minecraft Education 1.21.133 add-on and MakeCode extension for a visible aura helper named `superagent` that follows the Education Agent.
 
 ## What It Adds
 
 - A custom entity `superagent:superagent`.
-- Invisible 1x1 transparent texture plus invisibility effect refresh.
-- Visible presence particles, effect particles, and an always-visible name tag around the invisible helper so students can see where it is following the Agent.
+- A visible purple aura marker model with effect particles and an always-visible name tag so students can see where it is following the Agent.
 - Persistent, non-monster helper entity designed not to despawn in Peaceful.
 - Script behavior that keeps one managed `superagent` on top of each player's Minecraft Education Agent.
 - Rotation sync from the Agent to `superagent`.
