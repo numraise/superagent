@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  agent-survival-tests:
+  superagent-tests:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -17,4 +17,4 @@ jobs:
           node-version: "22"
 
       - name: Run automated tests
-        run: node tests/run-agent-survival-tests.js
+        run: node tests/run-superagent-tests.js

@@ -1,10 +1,10 @@
 {
-  "name": "agent-survival-toolkit",
-  "version": "0.0.9",
+  "name": "superagent",
+  "version": "0.1.0",
   "private": false,
-  "description": "Advanced statement-style workflows for the Minecraft Education Agent.",
+  "description": "superagent helper blocks and survival workflows for the Minecraft Education Agent.",
   "scripts": {
-    "test": "node tests/run-agent-survival-tests.js"
+    "test": "node tests/run-superagent-tests.js"
   },
   "license": "MIT"
 }

@@ -1,86 +1,47 @@
-# Agent Survival Toolkit
+# superagent
 
-Advanced MakeCode blocks for the Minecraft Education Agent, designed for Member + Survival play.
+Minecraft Education 1.21.133 add-on and MakeCode extension for an invisible Agent helper named `superagent`.
 
-The extension avoids world commands such as teleport, fill, setblock, summon, give, time, or weather. Every workflow is built from normal Agent actions: inspect, detect, move, destroy, place, collect, and inventory checks.
+## What It Adds
 
-Action blocks are statement-style blocks, so they connect in a command stack. Use `agent last count` and `agent last error` after an action to check what happened.
+- A custom entity `superagent:superagent`.
+- Invisible 1x1 transparent texture plus invisibility effect refresh.
+- Persistent, non-monster helper entity designed not to despawn in Peaceful.
+- Script behavior that keeps one managed `superagent` on top of each player's Minecraft Education Agent.
+- Rotation sync from the Agent to `superagent`.
+- Damage cancellation, high health, resistance, fire resistance, no gravity, no collision, and knockback resistance.
+- Hostile-mob attack aura with slowness and particle effects.
+- MakeCode `superagent` blocks that are safe for Member + Survival use because they rely on normal Agent actions.
 
-## Blocks
+## MakeCode Blocks
 
-- `agent last error`
-- `agent last count`
-- `agent signal ready/success/found/empty/blocked/no item/invalid input`
-- `agent show ready/success/found/empty/blocked/no item/invalid input`
-- `agent show last result`
-- `agent show scan result`
-- `agent show inventory slot ... has at least ...`
-- `agent has at least ... items in slot ...`
-- `agent scan any block/water/lava around radius ... height ...`
-- `agent scan found target`
-- `passive mobs near agent radius ...`
-- `hostile mobs near agent radius ...`
-- `agent collect drops`
-- `agent stride forward`
-- `agent backtrack`
-- `agent strike forward/back/left/right/up/down`
-- `agent sweep attack`
-- `agent vertical combo`
-- `agent charge attack`
-- `agent lunge attack`
-- `agent retreat attack`
-- `agent guard area`
-- `agent emerald power attack all directions`
-- `agent dig forward/back/left/right/up/down`
-- `agent drill line`
-- `agent quarry tunnel`
-- `agent stair mine down`
-- `agent strip mine`
-- `agent clear dirt cube 3 x 3 x 3`
-- `agent lay path`
-- `agent build platform`
-- `agent build wall`
-- `agent build bridge`
-- `agent fill box`
+- `superagent show ready/attack/shield`
+- `superagent attack aura`
+- `superagent guard agent`
+- `superagent power burst`
+- `superagent last burst count`
 
-## Result values
+## Install
 
-`agent last count` means the count from the most recent action. Depending on the action it can mean steps moved, tunnel slices mined, branches advanced, blocks placed, or soil blocks cleared.
-
-`agent last error` can be:
-
-- `none`
-- `blocked`
-- `no item`
-- `invalid input`
-
-Mob detection blocks return target selectors. For Member + Survival lessons, use them only with blocks that your world permissions allow. Avoid command-like mob actions such as teleport, effect, kill, or execute unless the host has explicitly allowed them. MakeCode target selectors do not provide a clean count/boolean result, so block scans use `agent last count`, while mob selectors are passed into other allowed mob actions.
-
-Communication blocks avoid chat and world commands so they work for Member + Survival players. `agent show ...` and the older `agent signal ...` blocks both use easy Agent gestures and do not need marker blocks or inventory slots. `found` spins right one full turn, `empty` spins left one full turn, `success/ready` makes a short right-left wiggle, and warning states shake or spin in place. Communication gestures do not use Agent attack actions.
-
-The older `agent mark ...` blocks still exist for compatibility, but they are deprecated because marker directions are harder for students to remember.
-
-`agent emerald power attack all directions` attacks forward, right, back, left, up, and down. Put emeralds in the selected Agent inventory slot before running it. The block drops one emerald behind the Agent for each five attacks, which removes it from the Agent inventory without using world commands. If the selected slot runs out, the action stops and `agent last error` becomes `no item`.
-
-## Install in MakeCode
-
-1. Open Minecraft Education Code Builder.
-2. Create or open a MakeCode project.
-3. Open **Extensions**.
-4. Search for this exact URL:
-
-```text
-https://github.com/numraise/agent-survival-toolkit
-```
-
-MakeCode search results only show approved extensions. Until this repo is approved by MakeCode/Microsoft, use the exact URL above.
-
-## Automated Testing
-
-Run the local logic tests:
+Import the add-on bundle:
 
 ```sh
-node tests/run-agent-survival-tests.js
+node tools/package-superagent-addon.js
 ```
 
-These tests mock the MakeCode Agent API and verify the workflow logic without opening Minecraft Education. In-game verification is still needed for release testing because Minecraft world state, permissions, and inventory are runtime conditions.
+Then open `dist/superagent.mcaddon` with Minecraft Education and activate both the behavior pack and resource pack in the world. A world owner or teacher must activate the pack first. After that, Member + Survival players can use the MakeCode extension blocks.
+
+Use this GitHub URL in MakeCode Extensions:
+
+```text
+https://github.com/numraise/superagent
+```
+
+## Test
+
+```sh
+node tests/run-superagent-tests.js
+node tools/package-superagent-addon.js
+```
+
+In-game verification is still required because Minecraft world state, Agent availability, and permissions are runtime conditions.

@@ -1,11 +1,11 @@
 {
-  "name": "agent-survival-toolkit",
-  "version": "0.0.9",
-  "description": "Advanced statement-style workflows for the Minecraft Education Agent.",
+  "name": "superagent",
+  "version": "0.1.0",
+  "description": "superagent helper blocks and survival workflows for the Minecraft Education Agent.",
   "license": "MIT",
   "icon": "./icon.png",
   "files": [
-    "agent-survival.ts",
+    "superagent.ts",
     "README.md",
     "LICENSE.txt",
     "icon.png"
