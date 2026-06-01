@@ -45,8 +45,8 @@ function transformMakeCodeTs(source) {
     })
     .replace(/namespace\s+superagent\s*\{/, "const superagent = (() => {\n")
     .replace(/export\s+function\s+(\w+)\s*\(/g, "function $1(")
-    .replace(/\)\s*:\s*(number|boolean|string|SuperagentBurstStyle|SuperagentStatus)\s*\{/g, ") {")
-    .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|SuperagentBurstStyle|SuperagentStatus)/g, "$1$2");
+    .replace(/\)\s*:\s*(number|boolean|string|SuperagentBurstStyle|SuperagentStatus|SuperagentSmartMode)\s*\{/g, ") {")
+    .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|SuperagentBurstStyle|SuperagentStatus|SuperagentSmartMode)/g, "$1$2");
 
   const privateNames = new Set([
     "clamp",
@@ -54,6 +54,7 @@ function transformMakeCodeTs(source) {
     "showRingPulse",
     "showVerticalPulse",
     "showShieldPulse",
+    "smartRing",
     "pulse",
   ]);
 
@@ -68,6 +69,7 @@ return { ${exportNames.join(", ")} };
 globalThis.superagent = superagent;
 globalThis.SuperagentBurstStyle = SuperagentBurstStyle;
 globalThis.SuperagentStatus = SuperagentStatus;
+globalThis.SuperagentSmartMode = SuperagentSmartMode;
 ${js.slice(lastBrace + 1)}`;
 }
 
@@ -137,6 +139,25 @@ test("superagent power burst attacks all six directions and collects drops", () 
   assert(agent.calls.some((call) => call[0] === "collectAll"));
 });
 
+test("superagent smart sweep prioritizes forward pressure and vertical guard", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.smartSweep(1, 2, 0);
+  assert.strictEqual(toolkit.reportLastBurstCount(), 12);
+  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.FORWARD).length, 3);
+  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.UP).length, 2);
+  assert(agent.calls.some((call) => call[0] === "turn"));
+});
+
+test("superagent overdrive uses emergency six-direction pressure and collects drops", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.overdrive(1, 1);
+  assert.strictEqual(toolkit.reportLastBurstCount(), 13);
+  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.BACK).length, 2);
+  assert(agent.calls.some((call) => call[0] === "collectAll"));
+});
+
 test("add-on manifests target Minecraft Education 1.21.133 compatible engine and stable script API", () => {
   const bp = readJson(path.join(ADDON, "superagent_BP", "manifest.json"));
   const rp = readJson(path.join(ADDON, "superagent_RP", "manifest.json"));
@@ -179,6 +200,17 @@ test("superagent script follows Education Agent and protects the managed mob", (
   assert(script.includes("rotation"));
   assert(script.includes("world.beforeEvents.entityHurt.subscribe"));
   assert(script.includes("event.cancel = true"));
-  assert(script.includes("target.applyDamage(ATTACK_DAMAGE)"));
+  assert(script.includes("target.applyDamage(ATTACK_DAMAGE"));
   assert(script.includes("dimension.spawnParticle"));
+});
+
+test("superagent script prioritizes dangerous nearby targets with stronger debuffs", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("const ATTACK_RADIUS = 6"));
+  assert(script.includes("const MAX_ATTACK_TARGETS = 8"));
+  assert(script.includes("HIGH_THREAT_TYPES"));
+  assert(script.includes("function threatScore"));
+  assert(script.includes("function smartAttackTargets"));
+  assert(script.includes('target.addEffect("weakness"'));
+  assert(script.includes("target.applyDamage(ATTACK_DAMAGE + (isHighThreat(target) ? 4 : 0))"));
 });

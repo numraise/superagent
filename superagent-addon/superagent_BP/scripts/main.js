@@ -4,8 +4,9 @@ const SUPER_AGENT_ID = "superagent:superagent";
 const DISPLAY_NAME = "superagent";
 const ROOT_TAG = "superagent.managed";
 const OWNER_TAG_PREFIX = "superagent.owner.";
-const ATTACK_RADIUS = 4.5;
-const ATTACK_DAMAGE = 6;
+const ATTACK_RADIUS = 6;
+const ATTACK_DAMAGE = 8;
+const MAX_ATTACK_TARGETS = 8;
 const FOLLOW_RADIUS = 96;
 const TICK_RATE = 2;
 
@@ -44,6 +45,27 @@ const HOSTILE_TYPES = [
   "minecraft:zombie_pigman",
   "minecraft:zombie_villager",
   "minecraft:zombified_piglin"
+];
+
+const HIGH_THREAT_TYPES = [
+  "minecraft:blaze",
+  "minecraft:breeze",
+  "minecraft:cave_spider",
+  "minecraft:creeper",
+  "minecraft:elder_guardian",
+  "minecraft:evocation_illager",
+  "minecraft:ghast",
+  "minecraft:guardian",
+  "minecraft:hoglin",
+  "minecraft:phantom",
+  "minecraft:piglin_brute",
+  "minecraft:pillager",
+  "minecraft:ravager",
+  "minecraft:vex",
+  "minecraft:vindicator",
+  "minecraft:warden",
+  "minecraft:witch",
+  "minecraft:wither_skeleton"
 ];
 
 function ownerTag(player) {
@@ -144,6 +166,42 @@ function isAttackTarget(entity) {
   return HOSTILE_TYPES.indexOf(entity.typeId) >= 0;
 }
 
+function isHighThreat(entity) {
+  return HIGH_THREAT_TYPES.indexOf(entity.typeId) >= 0;
+}
+
+function threatScore(entity, origin) {
+  let score = 100 - distanceSquared(entity.location, origin);
+  if (isHighThreat(entity)) {
+    score += 80;
+  }
+  if (entity.typeId === "minecraft:creeper" || entity.typeId === "minecraft:warden") {
+    score += 120;
+  }
+  return score;
+}
+
+function smartAttackTargets(superagent) {
+  return superagent.dimension.getEntities({
+    location: superagent.location,
+    maxDistance: ATTACK_RADIUS
+  })
+    .filter(isAttackTarget)
+    .sort((a, b) => threatScore(b, superagent.location) - threatScore(a, superagent.location))
+    .slice(0, MAX_ATTACK_TARGETS);
+}
+
+function weakenTarget(target) {
+  target.addEffect("slowness", 80, {
+    amplifier: isHighThreat(target) ? 2 : 1,
+    showParticles: true
+  });
+  target.addEffect("weakness", 80, {
+    amplifier: isHighThreat(target) ? 1 : 0,
+    showParticles: true
+  });
+}
+
 function emitAuraParticles(dimension, location, tick) {
   const angle = tick * 0.45;
   const ring = [
@@ -172,20 +230,11 @@ function emitAuraParticles(dimension, location, tick) {
 }
 
 function attackAround(superagent, tick) {
-  const targets = superagent.dimension.getEntities({
-    location: superagent.location,
-    maxDistance: ATTACK_RADIUS
-  });
+  const targets = smartAttackTargets(superagent);
   for (const target of targets) {
-    if (!isAttackTarget(target)) {
-      continue;
-    }
     try {
-      target.addEffect("slowness", 60, {
-        amplifier: 1,
-        showParticles: true
-      });
-      target.applyDamage(ATTACK_DAMAGE);
+      weakenTarget(target);
+      target.applyDamage(ATTACK_DAMAGE + (isHighThreat(target) ? 4 : 0));
     } catch (error) {
     }
   }

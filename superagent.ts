@@ -16,6 +16,15 @@ enum SuperagentStatus {
     Shield = 2
 }
 
+enum SuperagentSmartMode {
+    //% block="guard"
+    Guard = 0,
+    //% block="chase"
+    Chase = 1,
+    //% block="emergency"
+    Emergency = 2
+}
+
 /**
  * Member-safe control blocks for the invisible superagent add-on helper.
  */
@@ -37,6 +46,21 @@ namespace superagent {
         for (let i = 0; i < hits; i++) {
             agent.attack(direction)
             lastBurstCount++
+        }
+    }
+
+    function smartRing(strength: number, includeVertical: boolean, emergency: boolean) {
+        attackDirection(FORWARD, strength + 1)
+        attackDirection(RIGHT, strength)
+        attackDirection(LEFT, strength)
+        if (emergency) {
+            attackDirection(BACK, strength)
+        } else {
+            attackDirection(BACK, 1)
+        }
+        if (includeVertical) {
+            attackDirection(UP, strength)
+            attackDirection(DOWN, strength)
         }
     }
 
@@ -141,6 +165,42 @@ namespace superagent {
     //% group="Combat"
     export function powerBurst(rounds: number, hits: number) {
         attackAura(rounds, hits, SuperagentBurstStyle.Sphere)
+        agent.collectAll()
+    }
+
+    /**
+     * Sweep threats with a smarter pattern that prioritizes the front, sides, then vertical danger when needed.
+     */
+    //% blockId=superagent_smart_sweep block="superagent smart sweep rounds %rounds strength %strength mode %mode"
+    //% rounds.min=1 rounds.max=16 strength.min=1 strength.max=5
+    //% group="Combat"
+    export function smartSweep(rounds: number, strength: number, mode: SuperagentSmartMode) {
+        lastBurstCount = 0
+        rounds = clamp(rounds, 1, 16)
+        strength = clamp(strength, 1, 5)
+        for (let i = 0; i < rounds; i++) {
+            if (mode == SuperagentSmartMode.Emergency) {
+                smartRing(strength + 1, true, true)
+                showShieldPulse()
+            } else if (mode == SuperagentSmartMode.Chase) {
+                attackDirection(FORWARD, strength + 2)
+                smartRing(strength, false, false)
+                showRingPulse()
+            } else {
+                smartRing(strength, true, false)
+                showShieldPulse()
+            }
+        }
+    }
+
+    /**
+     * Use the strongest member-safe superagent attack pattern and collect nearby drops.
+     */
+    //% blockId=superagent_overdrive block="superagent overdrive rounds %rounds strength %strength"
+    //% rounds.min=1 rounds.max=16 strength.min=1 strength.max=5
+    //% group="Combat"
+    export function overdrive(rounds: number, strength: number) {
+        smartSweep(rounds, strength, SuperagentSmartMode.Emergency)
         agent.collectAll()
     }
 }

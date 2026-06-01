@@ -1,4 +1,6 @@
 superagent.showStatus(SuperagentStatus.Ready)
 superagent.attackAura(1, 1, SuperagentBurstStyle.Ring)
 superagent.powerBurst(1, 1)
+superagent.smartSweep(1, 1, SuperagentSmartMode.Guard)
+superagent.overdrive(1, 1)
 superagent.reportLastBurstCount()

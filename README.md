@@ -10,7 +10,7 @@ Minecraft Education 1.21.133 add-on and MakeCode extension for an invisible Agen
 - Script behavior that keeps one managed `superagent` on top of each player's Minecraft Education Agent.
 - Rotation sync from the Agent to `superagent`.
 - Damage cancellation, high health, resistance, fire resistance, no gravity, no collision, and knockback resistance.
-- Hostile-mob attack aura with slowness and particle effects.
+- Smart hostile-mob attack aura that prioritizes nearby high-threat mobs, adds slowness/weakness, and emits attack particles.
 - MakeCode `superagent` blocks that are safe for Member + Survival use because they rely on normal Agent actions.
 
 ## MakeCode Blocks
@@ -19,6 +19,8 @@ Minecraft Education 1.21.133 add-on and MakeCode extension for an invisible Agen
 - `superagent attack aura`
 - `superagent guard agent`
 - `superagent power burst`
+- `superagent smart sweep`
+- `superagent overdrive`
 - `superagent last burst count`
 
 ## Install
