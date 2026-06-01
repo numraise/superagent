@@ -147,6 +147,16 @@ test("add-on manifests target Minecraft Education 1.21.133 compatible engine and
   assert(bp.dependencies.some((dependency) => dependency.uuid === rp.header.uuid));
 });
 
+test("extension and visible add-on names use the same release version", () => {
+  const packageJson = readJson(path.join(ROOT, "package.json"));
+  const pxtJson = readJson(path.join(ROOT, "pxt.json"));
+  const bp = readJson(path.join(ADDON, "superagent_BP", "manifest.json"));
+  const rp = readJson(path.join(ADDON, "superagent_RP", "manifest.json"));
+  assert.strictEqual(packageJson.version, pxtJson.version);
+  assert(bp.header.name.includes(packageJson.version));
+  assert(rp.header.name.includes(packageJson.version));
+});
+
 test("superagent entity is invisible-helper friendly, persistent, non-monster, and invulnerable", () => {
   const entity = readJson(path.join(ADDON, "superagent_BP", "entities", "superagent.json"));
   const components = entity["minecraft:entity"].components;
