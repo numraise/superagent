@@ -1,0 +1,10 @@
+{
+  "name": "superagent",
+  "version": "0.1.0",
+  "private": false,
+  "description": "superagent helper blocks and survival workflows for the Minecraft Education Agent.",
+  "scripts": {
+    "test": "node tests/run-superagent-tests.js"
+  },
+  "license": "MIT"
+}

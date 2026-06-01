@@ -1,0 +1,24 @@
+{
+  "name": "superagent",
+  "version": "0.1.0",
+  "description": "superagent helper blocks and survival workflows for the Minecraft Education Agent.",
+  "license": "MIT",
+  "icon": "./icon.png",
+  "files": [
+    "superagent.ts",
+    "README.md",
+    "LICENSE.txt",
+    "icon.png"
+  ],
+  "testFiles": [
+    "test.ts"
+  ],
+  "dependencies": {
+    "core": "*"
+  },
+  "supportedTargets": [
+    "minecraft"
+  ],
+  "preferredEditor": "tsprj",
+  "public": true
+}

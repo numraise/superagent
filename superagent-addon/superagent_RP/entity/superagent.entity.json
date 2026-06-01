@@ -1,0 +1,18 @@
+{
+  "format_version": "1.21.100",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "superagent:superagent",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/superagent"
+      },
+      "geometry": {
+        "default": "geometry.superagent"
+      },
+      "render_controllers": ["controller.render.superagent"]
+    }
+  }
+}
