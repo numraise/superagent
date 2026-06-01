@@ -68,6 +68,12 @@ function transformMakeCodeTs(source) {
     "signalFromError",
     "signalDirection",
     "gestureSignal",
+    "clearGesture",
+    "showFoundGesture",
+    "showEmptyGesture",
+    "showBlockedGesture",
+    "showNoGesture",
+    "showSignalGesture",
     "placeIfEmpty",
     "moveAndPlaceLine",
     "backtrackInternal",
@@ -254,6 +260,30 @@ test("communication blocks use Agent gestures without chat", () => {
   assert(agent.calls.some((call) => call[0] === "attack" && call[1] === Direction.FORWARD));
   toolkit.sayInventorySlot(5);
   assert(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.FORWARD).length >= 2);
+});
+
+test("easy show blocks use readable gestures without marker blocks", () => {
+  const agent = createMockAgent({ inventory: { 5: 9 } });
+  const { toolkit } = loadToolkit(agent);
+  toolkit.show(2);
+  assert.strictEqual(toolkit.reportLastCount(), 1);
+  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.UP).length, 3);
+  toolkit.showInventoryCheck(5, 20);
+  assert(agent.calls.some((call) => call[0] === "turn" && call[1] === 0));
+  assert(!agent.calls.some((call) => call[0] === "place"));
+});
+
+test("show scan result preserves the previous scan meaning", () => {
+  const agent = createMockAgent({
+    testBlocks: {
+      "11,64,20": WATER,
+    },
+  });
+  const { toolkit } = loadToolkit(agent);
+  toolkit.scanBlocksAround(1, 1, 0);
+  toolkit.showScanResult();
+  assert.strictEqual(toolkit.reportLastCount(), 1);
+  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.UP).length, 3);
 });
 
 test("communication marker blocks place directional status markers", () => {

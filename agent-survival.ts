@@ -263,6 +263,57 @@ namespace agentSurvival {
         agent.attack(FORWARD)
     }
 
+    function clearGesture() {
+        agent.attack(UP)
+        agent.attack(DOWN)
+    }
+
+    function showFoundGesture() {
+        agent.attack(UP)
+        agent.attack(UP)
+        agent.attack(UP)
+    }
+
+    function showEmptyGesture() {
+        agent.attack(DOWN)
+        agent.attack(DOWN)
+        agent.attack(DOWN)
+    }
+
+    function showBlockedGesture() {
+        agent.turn(TurnDirection.Left)
+        agent.turn(TurnDirection.Left)
+        agent.turn(TurnDirection.Left)
+        agent.turn(TurnDirection.Left)
+    }
+
+    function showNoGesture() {
+        agent.turn(TurnDirection.Left)
+        agent.turn(TurnDirection.Right)
+        agent.turn(TurnDirection.Left)
+        agent.turn(TurnDirection.Right)
+    }
+
+    function showSignalGesture(signal: AgentSurvivalSignal) {
+        if (signal == AgentSurvivalSignal.Found) {
+            showFoundGesture()
+            return
+        }
+        if (signal == AgentSurvivalSignal.Empty) {
+            showEmptyGesture()
+            return
+        }
+        if (signal == AgentSurvivalSignal.Blocked || signal == AgentSurvivalSignal.InvalidInput) {
+            showBlockedGesture()
+            return
+        }
+        if (signal == AgentSurvivalSignal.NoItem) {
+            showNoGesture()
+            return
+        }
+        clearGesture()
+    }
+
     function placeIfEmpty(direction: number, slot: number): boolean {
         if (agent.detect(AgentDetection.Block, direction)) {
             return false
@@ -419,11 +470,61 @@ namespace agentSurvival {
     }
 
     /**
+     * Show a clear Agent response without chat or marker blocks.
+     */
+    //% blockId=agent_survival_show block="agent show %signal"
+    //% group="Communication"
+    export function show(signal: AgentSurvivalSignal) {
+        resetResult()
+        showSignalGesture(signal)
+        lastCount = 1
+    }
+
+    /**
+     * Show the most recent Agent Survival result with an easy Agent gesture.
+     */
+    //% blockId=agent_survival_show_last_result block="agent show last result"
+    //% group="Communication"
+    export function showLastResult() {
+        let signal = signalFromError(lastError)
+        resetResult()
+        showSignalGesture(signal)
+        lastCount = 1
+    }
+
+    /**
+     * Show the most recent scan result with an easy Agent gesture.
+     */
+    //% blockId=agent_survival_show_scan_result block="agent show scan result"
+    //% group="Communication"
+    export function showScanResult() {
+        let signal = lastCount > 0 ? AgentSurvivalSignal.Found : AgentSurvivalSignal.Empty
+        resetResult()
+        showSignalGesture(signal)
+        lastCount = 1
+    }
+
+    /**
+     * Show whether an Agent inventory slot has enough items.
+     */
+    //% blockId=agent_survival_show_inventory_check block="agent show inventory slot %slot has at least %amount"
+    //% slot.min=1 slot.max=27 amount.min=1 amount.max=64
+    //% group="Communication"
+    export function showInventoryCheck(slot: number, amount: number) {
+        slot = clamp(slot, 1, 27)
+        amount = clamp(amount, 1, 64)
+        resetResult()
+        showSignalGesture(hasEnough(slot, amount) ? AgentSurvivalSignal.Success : AgentSurvivalSignal.NoItem)
+        lastCount = 1
+    }
+
+    /**
      * Mark a signal by placing one marker block from the selected Agent slot. Direction shows the signal.
      */
     //% blockId=agent_survival_mark_signal block="agent mark %signal using slot %slot"
     //% slot.min=1 slot.max=27
     //% group="Communication"
+    //% deprecated=true
     export function markSignal(signal: AgentSurvivalSignal, slot: number) {
         resetResult()
         slot = clamp(slot, 1, 27)
@@ -443,6 +544,7 @@ namespace agentSurvival {
     //% blockId=agent_survival_mark_last_result block="agent mark last result using slot %slot"
     //% slot.min=1 slot.max=27
     //% group="Communication"
+    //% deprecated=true
     export function markLastResult(slot: number) {
         markSignal(signalFromError(lastError), slot)
     }
@@ -453,6 +555,7 @@ namespace agentSurvival {
     //% blockId=agent_survival_mark_scan_result block="agent mark scan result using slot %slot"
     //% slot.min=1 slot.max=27
     //% group="Communication"
+    //% deprecated=true
     export function markScanResult(slot: number) {
         markSignal(lastCount > 0 ? AgentSurvivalSignal.Found : AgentSurvivalSignal.Empty, slot)
     }
@@ -463,6 +566,7 @@ namespace agentSurvival {
     //% blockId=agent_survival_mark_inventory_check block="agent mark inventory slot %checkSlot has at least %amount using marker slot %markerSlot"
     //% checkSlot.min=1 checkSlot.max=27 amount.min=1 amount.max=64 markerSlot.min=1 markerSlot.max=27
     //% group="Communication"
+    //% deprecated=true
     export function markInventoryCheck(checkSlot: number, amount: number, markerSlot: number) {
         checkSlot = clamp(checkSlot, 1, 27)
         amount = clamp(amount, 1, 64)
