@@ -1,6 +1,7 @@
 import { EntityComponentTypes, system, world } from "@minecraft/server";
 
-const SUPER_AGENT_ID = "superagent:superagent";
+const CUSTOM_SUPER_AGENT_ID = "superagent:superagent";
+const SUPER_AGENT_ID = "minecraft:armor_stand";
 const DISPLAY_NAME = "superagent";
 const ROOT_TAG = "superagent.managed";
 const OWNER_TAG_PREFIX = "superagent.owner.";
@@ -83,7 +84,12 @@ function ownerTag(player) {
 }
 
 function isAgent(entity) {
-  return entity.typeId === "minecraft:agent" || entity.typeId === "agent";
+  const typeId = (entity.typeId || "").toLowerCase();
+  const nameTag = (entity.nameTag || "").toLowerCase();
+  return typeId === "minecraft:agent" ||
+    typeId === "agent" ||
+    typeId.indexOf("agent") >= 0 ||
+    nameTag.endsWith(".agent");
 }
 
 function distanceSquared(a, b) {
@@ -123,19 +129,26 @@ function findManagedSuperagents(player, anchorLocation) {
   });
 }
 
+function addEffectSafe(entity, effect, duration, options) {
+  try {
+    entity.addEffect(effect, duration, options);
+  } catch (error) {
+  }
+}
+
 function configureSuperagent(superagent, player) {
   superagent.nameTag = DISPLAY_NAME;
   superagent.addTag(ROOT_TAG);
   superagent.addTag(ownerTag(player));
-  superagent.addEffect("resistance", 200, {
+  addEffectSafe(superagent, "resistance", 200, {
     amplifier: 255,
     showParticles: false
   });
-  superagent.addEffect("fire_resistance", 200, {
+  addEffectSafe(superagent, "fire_resistance", 200, {
     amplifier: 1,
     showParticles: false
   });
-  superagent.addEffect("strength", 80, {
+  addEffectSafe(superagent, "strength", 80, {
     amplifier: 1,
     showParticles: true
   });
@@ -167,7 +180,7 @@ function followAgent(superagent, agentEntity) {
 }
 
 function isAttackTarget(entity) {
-  if (!entity || entity.typeId === SUPER_AGENT_ID || isAgent(entity)) {
+  if (!entity || entity.hasTag(ROOT_TAG) || entity.typeId === SUPER_AGENT_ID || entity.typeId === CUSTOM_SUPER_AGENT_ID || isAgent(entity)) {
     return false;
   }
   if (entity.typeId === "minecraft:player" || entity.typeId === "minecraft:item") {
@@ -305,7 +318,7 @@ function tickPlayer(player, tick) {
 }
 
 world.beforeEvents.entityHurt.subscribe((event) => {
-  if (event.hurtEntity.typeId === SUPER_AGENT_ID || event.hurtEntity.hasTag(ROOT_TAG)) {
+  if (event.hurtEntity.hasTag(ROOT_TAG) || event.hurtEntity.typeId === CUSTOM_SUPER_AGENT_ID) {
     event.cancel = true;
   }
 });

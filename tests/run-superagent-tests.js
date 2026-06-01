@@ -208,7 +208,9 @@ test("superagent resource pack renders a visible aura marker model", () => {
 
 test("superagent script follows Education Agent and protects the managed mob", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('entity.typeId === "minecraft:agent"'));
+  assert(script.includes('const SUPER_AGENT_ID = "minecraft:armor_stand"'));
+  assert(script.includes('typeId === "minecraft:agent"'));
+  assert(script.includes('nameTag.endsWith(".agent")'));
   assert(script.includes("superagent.teleport(agentEntity.location"));
   assert(script.includes("rotation"));
   assert(script.includes("world.beforeEvents.entityHurt.subscribe"));
@@ -235,7 +237,7 @@ test("superagent script emits a visible presence effect while following the Agen
   assert(script.includes("function emitPresenceParticles"));
   assert(script.includes("function spawnParticleAny"));
   assert(script.includes('"minecraft:totem_particle"'));
-  assert(script.includes('superagent.addEffect("strength"'));
+  assert(script.includes('addEffectSafe(superagent, "strength"'));
   assert(!script.includes('superagent.addEffect("invisibility"'));
   assert(script.includes("emitPresenceParticles(superagent.dimension, superagent.location, tick)"));
 });
