@@ -264,20 +264,22 @@ namespace agentSurvival {
     }
 
     function clearGesture() {
-        agent.attack(UP)
-        agent.attack(DOWN)
+        agent.turn(TurnDirection.Right)
+        agent.turn(TurnDirection.Left)
     }
 
     function showFoundGesture() {
-        agent.attack(UP)
-        agent.attack(UP)
-        agent.attack(UP)
+        agent.turn(TurnDirection.Right)
+        agent.turn(TurnDirection.Right)
+        agent.turn(TurnDirection.Right)
+        agent.turn(TurnDirection.Right)
     }
 
     function showEmptyGesture() {
-        agent.attack(DOWN)
-        agent.attack(DOWN)
-        agent.attack(DOWN)
+        agent.turn(TurnDirection.Left)
+        agent.turn(TurnDirection.Left)
+        agent.turn(TurnDirection.Left)
+        agent.turn(TurnDirection.Left)
     }
 
     function showBlockedGesture() {

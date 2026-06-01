@@ -267,7 +267,7 @@ test("easy show blocks use readable gestures without marker blocks", () => {
   const { toolkit } = loadToolkit(agent);
   toolkit.show(2);
   assert.strictEqual(toolkit.reportLastCount(), 1);
-  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.UP).length, 3);
+  assert.strictEqual(agent.calls.filter((call) => call[0] === "turn" && call[1] === 1).length, 4);
   toolkit.showInventoryCheck(5, 20);
   assert(agent.calls.some((call) => call[0] === "turn" && call[1] === 0));
   assert(!agent.calls.some((call) => call[0] === "place"));
@@ -283,7 +283,16 @@ test("show scan result preserves the previous scan meaning", () => {
   toolkit.scanBlocksAround(1, 1, 0);
   toolkit.showScanResult();
   assert.strictEqual(toolkit.reportLastCount(), 1);
-  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.UP).length, 3);
+  assert.strictEqual(agent.calls.filter((call) => call[0] === "turn" && call[1] === 1).length, 4);
+});
+
+test("show empty uses the opposite spin from show found", () => {
+  const agent = createMockAgent();
+  const { toolkit } = loadToolkit(agent);
+  toolkit.show(3);
+  assert.strictEqual(toolkit.reportLastCount(), 1);
+  assert.strictEqual(agent.calls.filter((call) => call[0] === "turn" && call[1] === 0).length, 4);
+  assert(!agent.calls.some((call) => call[0] === "attack"));
 });
 
 test("communication marker blocks place directional status markers", () => {

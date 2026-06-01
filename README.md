@@ -56,7 +56,7 @@ Action blocks are statement-style blocks, so they connect in a command stack. Us
 
 Mob detection blocks return target selectors. For Member + Survival lessons, use them only with blocks that your world permissions allow. Avoid command-like mob actions such as teleport, effect, kill, or execute unless the host has explicitly allowed them. MakeCode target selectors do not provide a clean count/boolean result, so block scans use `agent last count`, while mob selectors are passed into other allowed mob actions.
 
-Communication blocks avoid chat and world commands so they work for Member + Survival players. Prefer the `agent show ...` blocks because they use easy Agent gestures and do not need marker blocks or inventory slots. `found` points upward three times, `empty` points downward three times, `success/ready` nods up and down, and warning states shake or spin in place.
+Communication blocks avoid chat and world commands so they work for Member + Survival players. Prefer the `agent show ...` blocks because they use easy Agent gestures and do not need marker blocks or inventory slots. `found` spins right one full turn, `empty` spins left one full turn, `success/ready` makes a short right-left wiggle, and warning states shake or spin in place.
 
 The older `agent mark ...` blocks still exist for compatibility, but they are deprecated because marker directions are harder for students to remember.
 
