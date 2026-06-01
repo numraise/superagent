@@ -191,6 +191,7 @@ test("superagent entity is invisible-helper friendly, persistent, non-monster, a
   assert(components["minecraft:persistent"]);
   assert.strictEqual(components["minecraft:physics"].has_collision, false);
   assert.strictEqual(components["minecraft:physics"].has_gravity, false);
+  assert.strictEqual(components["minecraft:nameable"].always_show, true);
 });
 
 test("superagent script follows Education Agent and protects the managed mob", () => {
@@ -217,9 +218,11 @@ test("superagent script prioritizes dangerous nearby targets with stronger debuf
 
 test("superagent script emits a visible presence effect while following the Agent", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes("const PRESENCE_RADIUS = 0.75"));
+  assert(script.includes("const PRESENCE_RADIUS = 1.15"));
+  assert(script.includes("PRESENCE_PARTICLES"));
   assert(script.includes("function emitPresenceParticles"));
   assert(script.includes("function spawnParticleAny"));
-  assert(script.includes('"minecraft:endrod"'));
+  assert(script.includes('"minecraft:totem_particle"'));
+  assert(script.includes('superagent.addEffect("strength"'));
   assert(script.includes("emitPresenceParticles(superagent.dimension, superagent.location, tick)"));
 });

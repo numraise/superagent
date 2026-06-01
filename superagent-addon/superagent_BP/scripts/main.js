@@ -9,7 +9,16 @@ const ATTACK_DAMAGE = 8;
 const MAX_ATTACK_TARGETS = 8;
 const FOLLOW_RADIUS = 96;
 const TICK_RATE = 2;
-const PRESENCE_RADIUS = 0.75;
+const PRESENCE_RADIUS = 1.15;
+
+const PRESENCE_PARTICLES = [
+  "minecraft:totem_particle",
+  "minecraft:villager_happy",
+  "minecraft:basic_smoke_particle",
+  "minecraft:water_splash_particle",
+  "minecraft:basic_flame_particle",
+  "minecraft:critical_hit_emitter"
+];
 
 const HOSTILE_TYPES = [
   "minecraft:blaze",
@@ -130,6 +139,10 @@ function configureSuperagent(superagent, player) {
     amplifier: 1,
     showParticles: false
   });
+  superagent.addEffect("strength", 80, {
+    amplifier: 1,
+    showParticles: true
+  });
 }
 
 function ensureSuperagent(player, agentEntity) {
@@ -243,19 +256,17 @@ function spawnParticleAny(dimension, names, location) {
 
 function emitPresenceParticles(dimension, location, tick) {
   const angle = tick * 0.28;
-  const particles = [
-    "minecraft:endrod",
-    "minecraft:basic_flame_particle",
-    "minecraft:critical_hit_emitter"
-  ];
   const offsets = [
     { x: Math.cos(angle) * PRESENCE_RADIUS, y: 0.25, z: Math.sin(angle) * PRESENCE_RADIUS },
     { x: Math.cos(angle + Math.PI) * PRESENCE_RADIUS, y: 0.25, z: Math.sin(angle + Math.PI) * PRESENCE_RADIUS },
-    { x: Math.cos(angle + 1.57) * 0.45, y: 1.05, z: Math.sin(angle + 1.57) * 0.45 },
-    { x: 0, y: 1.55, z: 0 }
+    { x: Math.cos(angle + 1.57) * PRESENCE_RADIUS, y: 0.8, z: Math.sin(angle + 1.57) * PRESENCE_RADIUS },
+    { x: Math.cos(angle - 1.57) * PRESENCE_RADIUS, y: 0.8, z: Math.sin(angle - 1.57) * PRESENCE_RADIUS },
+    { x: Math.cos(angle + 0.8) * 0.55, y: 1.35, z: Math.sin(angle + 0.8) * 0.55 },
+    { x: Math.cos(angle + 3.9) * 0.55, y: 1.35, z: Math.sin(angle + 3.9) * 0.55 },
+    { x: 0, y: 1.75, z: 0 }
   ];
   for (const offset of offsets) {
-    spawnParticleAny(dimension, particles, {
+    spawnParticleAny(dimension, PRESENCE_PARTICLES, {
       x: location.x + offset.x,
       y: location.y + offset.y,
       z: location.z + offset.z
