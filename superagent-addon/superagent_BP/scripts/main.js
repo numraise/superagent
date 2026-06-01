@@ -9,6 +9,7 @@ const ATTACK_DAMAGE = 8;
 const MAX_ATTACK_TARGETS = 8;
 const FOLLOW_RADIUS = 96;
 const TICK_RATE = 2;
+const PRESENCE_RADIUS = 0.75;
 
 const HOSTILE_TYPES = [
   "minecraft:blaze",
@@ -229,6 +230,39 @@ function emitAuraParticles(dimension, location, tick) {
   }
 }
 
+function spawnParticleAny(dimension, names, location) {
+  for (const name of names) {
+    try {
+      dimension.spawnParticle(name, location);
+      return true;
+    } catch (error) {
+    }
+  }
+  return false;
+}
+
+function emitPresenceParticles(dimension, location, tick) {
+  const angle = tick * 0.28;
+  const particles = [
+    "minecraft:endrod",
+    "minecraft:basic_flame_particle",
+    "minecraft:critical_hit_emitter"
+  ];
+  const offsets = [
+    { x: Math.cos(angle) * PRESENCE_RADIUS, y: 0.25, z: Math.sin(angle) * PRESENCE_RADIUS },
+    { x: Math.cos(angle + Math.PI) * PRESENCE_RADIUS, y: 0.25, z: Math.sin(angle + Math.PI) * PRESENCE_RADIUS },
+    { x: Math.cos(angle + 1.57) * 0.45, y: 1.05, z: Math.sin(angle + 1.57) * 0.45 },
+    { x: 0, y: 1.55, z: 0 }
+  ];
+  for (const offset of offsets) {
+    spawnParticleAny(dimension, particles, {
+      x: location.x + offset.x,
+      y: location.y + offset.y,
+      z: location.z + offset.z
+    });
+  }
+}
+
 function attackAround(superagent, tick) {
   const targets = smartAttackTargets(superagent);
   for (const target of targets) {
@@ -259,6 +293,7 @@ function tickPlayer(player, tick) {
   const superagent = ensureSuperagent(player, agentEntity);
   followAgent(superagent, agentEntity);
   keepAlive(superagent);
+  emitPresenceParticles(superagent.dimension, superagent.location, tick);
   attackAround(superagent, tick);
 }
 

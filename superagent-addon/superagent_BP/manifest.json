@@ -1,30 +1,30 @@
 {
   "format_version": 2,
   "header": {
-    "name": "superagent 0.1.2 Behavior",
+    "name": "superagent 0.1.3 Behavior",
     "description": "Invisible persistent superagent helper for Minecraft Education 1.21.133.",
     "uuid": "b9495af2-892b-4f57-9982-3c939cf34f9e",
-    "version": [1, 0, 2],
+    "version": [1, 0, 3],
     "min_engine_version": [1, 21, 100]
   },
   "modules": [
     {
       "type": "data",
       "uuid": "daa50f95-6c70-4a61-baf6-fda1f900088e",
-      "version": [1, 0, 2]
+      "version": [1, 0, 3]
     },
     {
       "type": "script",
       "language": "javascript",
       "entry": "scripts/main.js",
       "uuid": "6f33758f-bbec-4a70-a749-ad2eb64447dd",
-      "version": [1, 0, 2]
+      "version": [1, 0, 3]
     }
   ],
   "dependencies": [
     {
       "uuid": "10b82ec2-7396-4863-a40f-ea52bc4990f9",
-      "version": [1, 0, 2]
+      "version": [1, 0, 3]
     },
     {
       "module_name": "@minecraft/server",

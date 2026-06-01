@@ -6,6 +6,7 @@ Minecraft Education 1.21.133 add-on and MakeCode extension for an invisible Agen
 
 - A custom entity `superagent:superagent`.
 - Invisible 1x1 transparent texture plus invisibility effect refresh.
+- Visible presence particles around the invisible helper so students can see where it is following the Agent.
 - Persistent, non-monster helper entity designed not to despawn in Peaceful.
 - Script behavior that keeps one managed `superagent` on top of each player's Minecraft Education Agent.
 - Rotation sync from the Agent to `superagent`.

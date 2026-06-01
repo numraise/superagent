@@ -1,6 +1,6 @@
 {
   "name": "superagent",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": false,
   "description": "superagent helper blocks and survival workflows for the Minecraft Education Agent.",
   "scripts": {

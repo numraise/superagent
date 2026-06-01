@@ -214,3 +214,12 @@ test("superagent script prioritizes dangerous nearby targets with stronger debuf
   assert(script.includes('target.addEffect("weakness"'));
   assert(script.includes("target.applyDamage(ATTACK_DAMAGE + (isHighThreat(target) ? 4 : 0))"));
 });
+
+test("superagent script emits a visible presence effect while following the Agent", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("const PRESENCE_RADIUS = 0.75"));
+  assert(script.includes("function emitPresenceParticles"));
+  assert(script.includes("function spawnParticleAny"));
+  assert(script.includes('"minecraft:endrod"'));
+  assert(script.includes("emitPresenceParticles(superagent.dimension, superagent.location, tick)"));
+});
