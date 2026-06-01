@@ -51,6 +51,11 @@ function transformMakeCodeTs(source) {
   const privateNames = new Set([
     "clamp",
     "attackDirection",
+    "runAtAgent",
+    "syncAddonMob",
+    "auraPulseCommands",
+    "attackCommandBurst",
+    "ensureAuraLoop",
     "showRingPulse",
     "showVerticalPulse",
     "showShieldPulse",
@@ -75,8 +80,10 @@ ${js.slice(lastBrace + 1)}`;
 
 function createMockAgent() {
   const calls = [];
+  const commandCalls = [];
   return {
     calls,
+    commandCalls,
     attack(direction) {
       calls.push(["attack", direction]);
     },
@@ -89,6 +96,10 @@ function createMockAgent() {
     collectAll() {
       calls.push(["collectAll"]);
     },
+    getPosition() {
+      calls.push(["getPosition"]);
+      return { x: 10, y: 20, z: 30 };
+    },
   };
 }
 
@@ -96,6 +107,24 @@ function loadSuperagent(agent) {
   const source = fs.readFileSync(SOURCE, "utf8");
   const sandbox = {
     agent,
+    mobs: {
+      target(kind) {
+        return ["target", kind];
+      },
+      execute(target, position, command) {
+        agent.commandCalls.push(["execute", target, position, command]);
+        return true;
+      },
+    },
+    loops: {
+      forever(callback) {
+        agent.calls.push(["forever", typeof callback]);
+      },
+      pause(ms) {
+        agent.calls.push(["pause", ms]);
+      },
+    },
+    LOCAL_PLAYER: "local_player",
     TurnDirection: { Left: 0, Right: 1 },
     FORWARD: Direction.FORWARD,
     BACK: Direction.BACK,
@@ -158,6 +187,18 @@ test("superagent overdrive uses emergency six-direction pressure and collects dr
   assert(agent.calls.some((call) => call[0] === "collectAll"));
 });
 
+test("superagent extension emits visible aura and sync commands at the Agent position", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.keepAuraOn();
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("summon superagent:superagent")));
+  assert(commands.some((command) => command.includes("tp @e[type=superagent:superagent")));
+  assert(commands.some((command) => command.includes("particle superagent:agent_aura")));
+  assert(commands.some((command) => command.includes("particle minecraft:basic_flame_particle")));
+  assert(agent.commandCalls.every((call) => call[2].x === 10 && call[2].y === 20 && call[2].z === 30));
+});
+
 test("add-on manifests target Minecraft Education 1.21.133 compatible engine and stable script API", () => {
   const bp = readJson(path.join(ADDON, "superagent_BP", "manifest.json"));
   const rp = readJson(path.join(ADDON, "superagent_RP", "manifest.json"));
@@ -191,24 +232,26 @@ test("superagent entity is aura-helper friendly, persistent, non-monster, and in
   assert(components["minecraft:persistent"]);
   assert.strictEqual(components["minecraft:physics"].has_collision, false);
   assert.strictEqual(components["minecraft:physics"].has_gravity, false);
-  assert.strictEqual(components["minecraft:nameable"].always_show, true);
-  assert.strictEqual(components["minecraft:scale"].value, 1.0);
+  assert.strictEqual(components["minecraft:nameable"].always_show, false);
+  assert.strictEqual(components["minecraft:scale"].value, 0.01);
 });
 
-test("superagent resource pack renders a visible aura marker model", () => {
-  const geometry = readJson(path.join(ADDON, "superagent_RP", "models", "entity", "superagent.geo.json"));
-  const texture = fs.statSync(path.join(ADDON, "superagent_RP", "textures", "entity", "superagent.png"));
-  const description = geometry["minecraft:geometry"][0].description;
-  const cubes = geometry["minecraft:geometry"][0].bones[0].cubes;
-  assert.strictEqual(description.visible_bounds_width, 3);
-  assert.strictEqual(description.visible_bounds_height, 3);
-  assert(cubes.length >= 5);
-  assert(texture.size > 100);
+test("superagent resource pack defines visible aura and attack particles", () => {
+  const aura = readJson(path.join(ADDON, "superagent_RP", "particles", "superagent_agent_aura.json"));
+  const spark = readJson(path.join(ADDON, "superagent_RP", "particles", "superagent_agent_spark.json"));
+  const attack = readJson(path.join(ADDON, "superagent_RP", "particles", "superagent_attack_burst.json"));
+  assert.strictEqual(aura.particle_effect.description.identifier, "superagent:agent_aura");
+  assert.strictEqual(spark.particle_effect.description.identifier, "superagent:agent_spark");
+  assert.strictEqual(attack.particle_effect.description.identifier, "superagent:attack_burst");
+  assert(aura.particle_effect.components["minecraft:emitter_shape_disc"]);
+  assert(spark.particle_effect.components["minecraft:emitter_shape_sphere"]);
+  assert(attack.particle_effect.components["minecraft:emitter_rate_instant"].num_particles >= 20);
 });
 
 test("superagent script follows Education Agent and protects the managed mob", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('const SUPER_AGENT_ID = "minecraft:armor_stand"'));
+  assert(script.includes('const SUPER_AGENT_ID = "superagent:superagent"'));
+  assert(script.includes('const LEGACY_VISIBLE_MARKER_ID = "minecraft:armor_stand"'));
   assert(script.includes('typeId === "minecraft:agent"'));
   assert(script.includes('nameTag.endsWith(".agent")'));
   assert(script.includes("superagent.teleport(agentEntity.location"));
@@ -221,8 +264,8 @@ test("superagent script follows Education Agent and protects the managed mob", (
 
 test("superagent script prioritizes dangerous nearby targets with stronger debuffs", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes("const ATTACK_RADIUS = 6"));
-  assert(script.includes("const MAX_ATTACK_TARGETS = 8"));
+  assert(script.includes("const ATTACK_RADIUS = 8"));
+  assert(script.includes("const MAX_ATTACK_TARGETS = 12"));
   assert(script.includes("HIGH_THREAT_TYPES"));
   assert(script.includes("function threatScore"));
   assert(script.includes("function smartAttackTargets"));
@@ -232,12 +275,31 @@ test("superagent script prioritizes dangerous nearby targets with stronger debuf
 
 test("superagent script emits a visible presence effect while following the Agent", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes("const PRESENCE_RADIUS = 1.15"));
-  assert(script.includes("PRESENCE_PARTICLES"));
+  assert(script.includes("const PRESENCE_RADIUS = 1.35"));
+  assert(script.includes("CUSTOM_PRESENCE_PARTICLES"));
+  assert(script.includes("FALLBACK_PRESENCE_PARTICLES"));
   assert(script.includes("function emitPresenceParticles"));
+  assert(script.includes("function refreshAgentVisibleEffects"));
+  assert(script.includes("function cleanupLegacyVisibleMarkers"));
   assert(script.includes("function spawnParticleAny"));
+  assert(script.includes("function spawnParticleCommand"));
+  assert(script.includes('"superagent:agent_aura"'));
   assert(script.includes('"minecraft:totem_particle"'));
-  assert(script.includes('addEffectSafe(superagent, "strength"'));
-  assert(!script.includes('superagent.addEffect("invisibility"'));
-  assert(script.includes("emitPresenceParticles(superagent.dimension, superagent.location, tick)"));
+  assert(script.includes('addEffectSafe(superagent, "invisibility"'));
+  assert(script.includes('addEffectSafe(agentEntity, "strength"'));
+  assert(script.includes("emitPresenceParticles(agentEntity.dimension, agentEntity.location, tick)"));
+});
+
+test("superagent script has command fallback for Education Agent selector visibility", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes('return `${player.name}.Agent`;'));
+  assert(script.includes("function agentSelector"));
+  assert(script.includes("function runAtNamedAgent"));
+  assert(script.includes("function commandPresenceOnAgent"));
+  assert(script.includes("function commandFollowSuperagent"));
+  assert(script.includes("function commandAttackAroundAgent"));
+  assert(script.includes("execute as ${agentSelector(player)} at @s run ${command}"));
+  assert(script.includes("particle superagent:agent_aura ~ ~0.15 ~"));
+  assert(script.includes("tp @e[type=${SUPER_AGENT_ID},tag=${playerOwnerTag}] ~ ~ ~"));
+  assert(script.includes("damage @e[family=monster,r=${ATTACK_RADIUS}] ${ATTACK_DAMAGE} entity_attack entity @s"));
 });

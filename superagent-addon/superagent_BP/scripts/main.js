@@ -1,24 +1,36 @@
 import { EntityComponentTypes, system, world } from "@minecraft/server";
 
-const CUSTOM_SUPER_AGENT_ID = "superagent:superagent";
-const SUPER_AGENT_ID = "minecraft:armor_stand";
-const DISPLAY_NAME = "superagent";
+const SUPER_AGENT_ID = "superagent:superagent";
+const LEGACY_VISIBLE_MARKER_ID = "minecraft:armor_stand";
+const DISPLAY_NAME = "superaagent";
 const ROOT_TAG = "superagent.managed";
 const OWNER_TAG_PREFIX = "superagent.owner.";
-const ATTACK_RADIUS = 6;
-const ATTACK_DAMAGE = 8;
-const MAX_ATTACK_TARGETS = 8;
-const FOLLOW_RADIUS = 96;
+const READY_TAG = "superagent.ready.0_1_10";
+const ATTACK_RADIUS = 8;
+const ATTACK_DAMAGE = 14;
+const MAX_ATTACK_TARGETS = 12;
+const FOLLOW_RADIUS = 128;
 const TICK_RATE = 2;
-const PRESENCE_RADIUS = 1.15;
+const PRESENCE_RADIUS = 1.35;
 
-const PRESENCE_PARTICLES = [
+const CUSTOM_PRESENCE_PARTICLES = [
+  "superagent:agent_aura",
+  "superagent:agent_spark"
+];
+
+const FALLBACK_PRESENCE_PARTICLES = [
   "minecraft:totem_particle",
+  "minecraft:heart_particle",
   "minecraft:villager_happy",
-  "minecraft:basic_smoke_particle",
-  "minecraft:water_splash_particle",
   "minecraft:basic_flame_particle",
+  "minecraft:basic_smoke_particle",
   "minecraft:critical_hit_emitter"
+];
+
+const ATTACK_PARTICLES = [
+  "superagent:attack_burst",
+  "minecraft:critical_hit_emitter",
+  "minecraft:basic_flame_particle"
 ];
 
 const HOSTILE_TYPES = [
@@ -88,8 +100,10 @@ function isAgent(entity) {
   const nameTag = (entity.nameTag || "").toLowerCase();
   return typeId === "minecraft:agent" ||
     typeId === "agent" ||
+    typeId.endsWith(":agent") ||
     typeId.indexOf("agent") >= 0 ||
-    nameTag.endsWith(".agent");
+    nameTag.endsWith(".agent") ||
+    nameTag.indexOf(".agent") >= 0;
 }
 
 function distanceSquared(a, b) {
@@ -121,15 +135,28 @@ function findPlayerAgent(player) {
 }
 
 function findManagedSuperagents(player, anchorLocation) {
+  const playerOwnerTag = ownerTag(player);
   return player.dimension.getEntities({
     type: SUPER_AGENT_ID,
-    tags: [ROOT_TAG, ownerTag(player)],
     location: anchorLocation,
     maxDistance: FOLLOW_RADIUS
+  }).filter((entity) => {
+    const nameTag = (entity.nameTag || "").toLowerCase();
+    return entity.hasTag(ROOT_TAG) ||
+      entity.hasTag(playerOwnerTag) ||
+      nameTag === "superagent" ||
+      nameTag === "superaagent";
   });
 }
 
+function findManagedSuperagentsNearPlayer(player) {
+  return findManagedSuperagents(player, player.location);
+}
+
 function addEffectSafe(entity, effect, duration, options) {
+  if (!entity) {
+    return;
+  }
   try {
     entity.addEffect(effect, duration, options);
   } catch (error) {
@@ -137,9 +164,16 @@ function addEffectSafe(entity, effect, duration, options) {
 }
 
 function configureSuperagent(superagent, player) {
+  if (!superagent) {
+    return;
+  }
   superagent.nameTag = DISPLAY_NAME;
   superagent.addTag(ROOT_TAG);
   superagent.addTag(ownerTag(player));
+  addEffectSafe(superagent, "invisibility", 200, {
+    amplifier: 1,
+    showParticles: false
+  });
   addEffectSafe(superagent, "resistance", 200, {
     amplifier: 255,
     showParticles: false
@@ -148,17 +182,17 @@ function configureSuperagent(superagent, player) {
     amplifier: 1,
     showParticles: false
   });
-  addEffectSafe(superagent, "strength", 80, {
-    amplifier: 1,
-    showParticles: true
-  });
 }
 
-function ensureSuperagent(player, agentEntity) {
-  const existing = findManagedSuperagents(player, agentEntity.location);
-  let superagent = closestEntity(existing, agentEntity.location);
+function ensureSuperagentAtLocation(player, location) {
+  const existing = findManagedSuperagents(player, location);
+  let superagent = closestEntity(existing, location);
   if (!superagent) {
-    superagent = player.dimension.spawnEntity(SUPER_AGENT_ID, agentEntity.location);
+    try {
+      superagent = player.dimension.spawnEntity(SUPER_AGENT_ID, location);
+    } catch (error) {
+      return undefined;
+    }
   }
   configureSuperagent(superagent, player);
   for (const duplicate of existing) {
@@ -169,18 +203,47 @@ function ensureSuperagent(player, agentEntity) {
   return superagent;
 }
 
+function ensureSuperagent(player, agentEntity) {
+  return ensureSuperagentAtLocation(player, agentEntity.location);
+}
+
+function ensureFallbackSuperagent(player) {
+  const existing = findManagedSuperagentsNearPlayer(player);
+  const current = closestEntity(existing, player.location);
+  if (current) {
+    configureSuperagent(current, player);
+    return current;
+  }
+  return ensureSuperagentAtLocation(player, player.location);
+}
+
 function followAgent(superagent, agentEntity) {
-  const rotation = agentEntity.getRotation();
-  superagent.teleport(agentEntity.location, {
-    dimension: agentEntity.dimension,
-    rotation,
-    checkForBlocks: false
-  });
-  superagent.clearVelocity();
+  if (!superagent) {
+    return;
+  }
+  const rotation = typeof agentEntity.getRotation === "function" ? agentEntity.getRotation() : { x: 0, y: 0 };
+  try {
+    superagent.teleport(agentEntity.location, {
+      dimension: agentEntity.dimension,
+      rotation,
+      checkForBlocks: false
+    });
+  } catch (error) {
+    try {
+      superagent.teleport(agentEntity.location);
+    } catch (ignored) {
+    }
+  }
+  try {
+    if (typeof superagent.clearVelocity === "function") {
+      superagent.clearVelocity();
+    }
+  } catch (error) {
+  }
 }
 
 function isAttackTarget(entity) {
-  if (!entity || entity.hasTag(ROOT_TAG) || entity.typeId === SUPER_AGENT_ID || entity.typeId === CUSTOM_SUPER_AGENT_ID || isAgent(entity)) {
+  if (!entity || entity.hasTag(ROOT_TAG) || entity.typeId === SUPER_AGENT_ID || entity.typeId === LEGACY_VISIBLE_MARKER_ID || isAgent(entity)) {
     return false;
   }
   if (entity.typeId === "minecraft:player" || entity.typeId === "minecraft:item") {
@@ -233,23 +296,77 @@ function emitAuraParticles(dimension, location, tick) {
     { x: Math.cos(angle + 4.2) * 1.4, y: 1.5, z: Math.sin(angle + 4.2) * 1.4 }
   ];
   for (const offset of ring) {
-    try {
-      dimension.spawnParticle("minecraft:critical_hit_emitter", {
-        x: location.x + offset.x,
-        y: location.y + offset.y,
-        z: location.z + offset.z
-      });
-    } catch (error) {
-      try {
-        dimension.spawnParticle("minecraft:basic_flame_particle", {
-          x: location.x + offset.x,
-          y: location.y + offset.y,
-          z: location.z + offset.z
-        });
-      } catch (ignored) {
-      }
-    }
+    spawnParticleAny(dimension, ATTACK_PARTICLES, {
+      x: location.x + offset.x,
+      y: location.y + offset.y,
+      z: location.z + offset.z
+    });
   }
+}
+
+function formatCoord(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function escapeCommandString(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function agentName(player) {
+  return `${player.name}.Agent`;
+}
+
+function agentSelector(player) {
+  return `@e[name="${escapeCommandString(agentName(player))}"]`;
+}
+
+function runCommandSafe(dimension, command) {
+  try {
+    if (typeof dimension.runCommandAsync === "function") {
+      dimension.runCommandAsync(command);
+      return true;
+    }
+  } catch (error) {
+  }
+  try {
+    if (typeof dimension.runCommand === "function") {
+      dimension.runCommand(command);
+      return true;
+    }
+  } catch (error) {
+  }
+  return false;
+}
+
+function spawnParticleCommand(dimension, name, location) {
+  return runCommandSafe(dimension, `particle ${name} ${formatCoord(location.x)} ${formatCoord(location.y)} ${formatCoord(location.z)}`);
+}
+
+function runAtNamedAgent(player, command) {
+  return runCommandSafe(player.dimension, `execute as ${agentSelector(player)} at @s run ${command}`);
+}
+
+function commandPresenceOnAgent(player) {
+  runAtNamedAgent(player, "particle superagent:agent_aura ~ ~0.15 ~");
+  runAtNamedAgent(player, "particle superagent:agent_spark ~ ~1.2 ~");
+  runAtNamedAgent(player, "particle minecraft:totem_particle ~ ~1.1 ~");
+  runAtNamedAgent(player, "particle minecraft:basic_flame_particle ~ ~0.15 ~");
+  runCommandSafe(player.dimension, `effect ${agentSelector(player)} strength 3 1 false`);
+  runCommandSafe(player.dimension, `effect ${agentSelector(player)} resistance 3 0 false`);
+}
+
+function commandFollowSuperagent(player) {
+  const playerOwnerTag = ownerTag(player);
+  runAtNamedAgent(player, `tp @e[type=${SUPER_AGENT_ID},tag=${playerOwnerTag}] ~ ~ ~`);
+  runAtNamedAgent(player, `effect @e[type=${SUPER_AGENT_ID},tag=${playerOwnerTag},r=3] invisibility 10 1 true`);
+  runAtNamedAgent(player, `effect @e[type=${SUPER_AGENT_ID},tag=${playerOwnerTag},r=3] resistance 10 255 true`);
+}
+
+function commandAttackAroundAgent(player) {
+  runAtNamedAgent(player, `damage @e[family=monster,r=${ATTACK_RADIUS}] ${ATTACK_DAMAGE} entity_attack entity @s`);
+  runAtNamedAgent(player, `effect @e[family=monster,r=${ATTACK_RADIUS}] slowness 3 1 false`);
+  runAtNamedAgent(player, `effect @e[family=monster,r=${ATTACK_RADIUS}] weakness 3 0 false`);
+  runAtNamedAgent(player, "particle superagent:attack_burst ~ ~0.8 ~");
 }
 
 function spawnParticleAny(dimension, names, location) {
@@ -260,11 +377,26 @@ function spawnParticleAny(dimension, names, location) {
     } catch (error) {
     }
   }
+  for (const name of names) {
+    if (spawnParticleCommand(dimension, name, location)) {
+      return true;
+    }
+  }
   return false;
 }
 
 function emitPresenceParticles(dimension, location, tick) {
   const angle = tick * 0.28;
+  spawnParticleAny(dimension, CUSTOM_PRESENCE_PARTICLES, {
+    x: location.x,
+    y: location.y + 0.2,
+    z: location.z
+  });
+  spawnParticleAny(dimension, CUSTOM_PRESENCE_PARTICLES, {
+    x: location.x,
+    y: location.y + 1.35,
+    z: location.z
+  });
   const offsets = [
     { x: Math.cos(angle) * PRESENCE_RADIUS, y: 0.25, z: Math.sin(angle) * PRESENCE_RADIUS },
     { x: Math.cos(angle + Math.PI) * PRESENCE_RADIUS, y: 0.25, z: Math.sin(angle + Math.PI) * PRESENCE_RADIUS },
@@ -275,7 +407,7 @@ function emitPresenceParticles(dimension, location, tick) {
     { x: 0, y: 1.75, z: 0 }
   ];
   for (const offset of offsets) {
-    spawnParticleAny(dimension, PRESENCE_PARTICLES, {
+    spawnParticleAny(dimension, FALLBACK_PRESENCE_PARTICLES, {
       x: location.x + offset.x,
       y: location.y + offset.y,
       z: location.z + offset.z
@@ -296,6 +428,9 @@ function attackAround(superagent, tick) {
 }
 
 function keepAlive(superagent) {
+  if (!superagent) {
+    return;
+  }
   try {
     const health = superagent.getComponent(EntityComponentTypes.Health);
     if (health) {
@@ -305,20 +440,78 @@ function keepAlive(superagent) {
   }
 }
 
+function refreshAgentVisibleEffects(agentEntity) {
+  addEffectSafe(agentEntity, "strength", 80, {
+    amplifier: 1,
+    showParticles: true
+  });
+  addEffectSafe(agentEntity, "resistance", 80, {
+    amplifier: 0,
+    showParticles: true
+  });
+}
+
+function markerNameMatches(entity) {
+  const nameTag = (entity.nameTag || "").toLowerCase();
+  return nameTag === "superagent" || nameTag === "superaagent";
+}
+
+function removeEntitySafe(entity) {
+  try {
+    entity.remove();
+  } catch (error) {
+  }
+}
+
+function cleanupLegacyVisibleMarkers(player, anchorLocation) {
+  const legacyMarkers = player.dimension.getEntities({
+    type: LEGACY_VISIBLE_MARKER_ID,
+    location: anchorLocation,
+    maxDistance: FOLLOW_RADIUS
+  });
+  for (const marker of legacyMarkers) {
+    if (marker.hasTag(ROOT_TAG) || markerNameMatches(marker)) {
+      removeEntitySafe(marker);
+    }
+  }
+  runCommandSafe(player.dimension, `kill @e[type=${LEGACY_VISIBLE_MARKER_ID},tag=${ROOT_TAG}]`);
+  runCommandSafe(player.dimension, `kill @e[type=${LEGACY_VISIBLE_MARKER_ID},name=superagent]`);
+  runCommandSafe(player.dimension, `kill @e[type=${LEGACY_VISIBLE_MARKER_ID},name=superaagent]`);
+}
+
+function announceReady(player) {
+  try {
+    if (!player.hasTag(READY_TAG)) {
+      player.addTag(READY_TAG);
+      player.sendMessage("superagent 0.1.10 script active");
+    }
+  } catch (error) {
+  }
+}
+
 function tickPlayer(player, tick) {
+  announceReady(player);
+  cleanupLegacyVisibleMarkers(player, player.location);
+  const fallbackSuperagent = ensureFallbackSuperagent(player);
+  keepAlive(fallbackSuperagent);
+  commandFollowSuperagent(player);
+  commandPresenceOnAgent(player);
+  commandAttackAroundAgent(player);
   const agentEntity = findPlayerAgent(player);
   if (!agentEntity) {
     return;
   }
+  cleanupLegacyVisibleMarkers(player, agentEntity.location);
   const superagent = ensureSuperagent(player, agentEntity);
   followAgent(superagent, agentEntity);
   keepAlive(superagent);
-  emitPresenceParticles(superagent.dimension, superagent.location, tick);
-  attackAround(superagent, tick);
+  refreshAgentVisibleEffects(agentEntity);
+  emitPresenceParticles(agentEntity.dimension, agentEntity.location, tick);
+  attackAround(superagent || agentEntity, tick);
 }
 
 world.beforeEvents.entityHurt.subscribe((event) => {
-  if (event.hurtEntity.hasTag(ROOT_TAG) || event.hurtEntity.typeId === CUSTOM_SUPER_AGENT_ID) {
+  if (event.hurtEntity.hasTag(ROOT_TAG) || event.hurtEntity.typeId === SUPER_AGENT_ID) {
     event.cancel = true;
   }
 });
@@ -336,9 +529,15 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     }),
     anchor.location
   );
-  if (superagent) {
-    attackAround(superagent, system.currentTick);
-  }
+  const attackAnchor = superagent || closestEntity(
+    anchor.dimension.getEntities({
+      location: anchor.location,
+      maxDistance: FOLLOW_RADIUS
+    }).filter(isAgent),
+    anchor.location
+  ) || anchor;
+  emitPresenceParticles(attackAnchor.dimension, attackAnchor.location, system.currentTick);
+  attackAround(attackAnchor, system.currentTick);
 });
 
 system.runInterval(() => {

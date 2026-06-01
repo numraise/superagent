@@ -31,6 +31,7 @@ enum SuperagentSmartMode {
 //% weight=96 color=#5a43b5 icon="\uf21e" block="superagent"
 namespace superagent {
     let lastBurstCount = 0
+    let auraLoopStarted = false
 
     function clamp(value: number, min: number, max: number): number {
         if (value < min) {
@@ -47,6 +48,51 @@ namespace superagent {
             agent.attack(direction)
             lastBurstCount++
         }
+    }
+
+    function runAtAgent(command: string): boolean {
+        return mobs.execute(mobs.target(LOCAL_PLAYER), agent.getPosition(), command)
+    }
+
+    function syncAddonMob() {
+        runAtAgent("kill @e[type=minecraft:armor_stand,name=superagent,r=64]")
+        runAtAgent("kill @e[type=minecraft:armor_stand,name=superaagent,r=64]")
+        runAtAgent("execute unless entity @e[type=superagent:superagent,r=2] run summon superagent:superagent ~ ~ ~")
+        runAtAgent("tp @e[type=superagent:superagent,r=16,c=1] ~ ~ ~")
+        runAtAgent("effect @e[type=superagent:superagent,r=3,c=1] invisibility 10 1 true")
+        runAtAgent("effect @e[type=superagent:superagent,r=3,c=1] resistance 10 255 true")
+    }
+
+    function auraPulseCommands() {
+        runAtAgent("particle superagent:agent_aura ~ ~0.2 ~")
+        runAtAgent("particle superagent:agent_spark ~ ~1.2 ~")
+        runAtAgent("particle minecraft:basic_flame_particle ~1 ~0.35 ~")
+        runAtAgent("particle minecraft:basic_flame_particle ~-1 ~0.35 ~")
+        runAtAgent("particle minecraft:basic_flame_particle ~ ~0.35 ~1")
+        runAtAgent("particle minecraft:basic_flame_particle ~ ~0.35 ~-1")
+        runAtAgent("particle minecraft:totem_particle ~ ~1.25 ~")
+        runAtAgent("particle minecraft:villager_happy ~ ~1.6 ~")
+    }
+
+    function attackCommandBurst(strength: number) {
+        let damage = 8 + strength * 3
+        runAtAgent("particle superagent:attack_burst ~ ~0.8 ~")
+        runAtAgent("particle minecraft:critical_hit_emitter ~ ~1 ~")
+        runAtAgent("effect @e[family=monster,r=8] slowness 3 1 false")
+        runAtAgent("effect @e[family=monster,r=8] weakness 3 0 false")
+        runAtAgent("damage @e[family=monster,r=8] " + damage + " entity_attack")
+    }
+
+    function ensureAuraLoop() {
+        if (auraLoopStarted) {
+            return
+        }
+        auraLoopStarted = true
+        loops.forever(function () {
+            syncAddonMob()
+            auraPulseCommands()
+            loops.pause(300)
+        })
     }
 
     function smartRing(strength: number, includeVertical: boolean, emergency: boolean) {
@@ -84,6 +130,9 @@ namespace superagent {
     }
 
     function pulse(style: SuperagentBurstStyle) {
+        ensureAuraLoop()
+        syncAddonMob()
+        auraPulseCommands()
         if (style == SuperagentBurstStyle.Vertical) {
             showVerticalPulse()
             return
@@ -112,6 +161,9 @@ namespace superagent {
     //% group="Status"
     export function showStatus(status: SuperagentStatus) {
         lastBurstCount = 0
+        ensureAuraLoop()
+        syncAddonMob()
+        auraPulseCommands()
         if (status == SuperagentStatus.Attack) {
             showRingPulse()
             return
@@ -132,9 +184,12 @@ namespace superagent {
     //% group="Combat"
     export function attackAura(rounds: number, hits: number, style: SuperagentBurstStyle) {
         lastBurstCount = 0
+        ensureAuraLoop()
         rounds = clamp(rounds, 1, 32)
         hits = clamp(hits, 1, 8)
         for (let i = 0; i < rounds; i++) {
+            syncAddonMob()
+            auraPulseCommands()
             attackDirection(FORWARD, hits)
             attackDirection(RIGHT, hits)
             attackDirection(BACK, hits)
@@ -143,6 +198,7 @@ namespace superagent {
                 attackDirection(UP, hits)
                 attackDirection(DOWN, hits)
             }
+            attackCommandBurst(hits)
             pulse(style)
         }
     }
@@ -176,9 +232,12 @@ namespace superagent {
     //% group="Combat"
     export function smartSweep(rounds: number, strength: number, mode: SuperagentSmartMode) {
         lastBurstCount = 0
+        ensureAuraLoop()
         rounds = clamp(rounds, 1, 16)
         strength = clamp(strength, 1, 5)
         for (let i = 0; i < rounds; i++) {
+            syncAddonMob()
+            auraPulseCommands()
             if (mode == SuperagentSmartMode.Emergency) {
                 smartRing(strength + 1, true, true)
                 showShieldPulse()
@@ -190,6 +249,7 @@ namespace superagent {
                 smartRing(strength, true, false)
                 showShieldPulse()
             }
+            attackCommandBurst(strength)
         }
     }
 
@@ -202,5 +262,16 @@ namespace superagent {
     export function overdrive(rounds: number, strength: number) {
         smartSweep(rounds, strength, SuperagentSmartMode.Emergency)
         agent.collectAll()
+    }
+
+    /**
+     * Start and refresh the visible superagent aura at the Agent's current position.
+     */
+    //% blockId=superagent_keep_aura_on block="superagent keep aura on"
+    //% group="Status"
+    export function keepAuraOn() {
+        ensureAuraLoop()
+        syncAddonMob()
+        auraPulseCommands()
     }
 }

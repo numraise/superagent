@@ -1,14 +1,15 @@
 # superagent
 
-Minecraft Education 1.21.133 add-on and MakeCode extension for a visible aura helper named `superagent` that follows the Education Agent.
+Minecraft Education 1.21.133 add-on and MakeCode extension for an invisible helper mob named `superaagent` that follows the Education Agent and shows a visible aura on the Agent.
 
 ## What It Adds
 
-- A custom entity `superagent:superagent`.
-- A visible vanilla armor stand marker named `superagent`, plus particles and an always-visible name tag, so students can see where it is following the Agent even when custom entity rendering is unavailable.
+- A custom invisible entity `superagent:superagent` named `superaagent`.
+- Custom resource-pack aura particles, fallback vanilla particles, and MakeCode commands that emit effects at `agent.getPosition()` so students can see that `superaagent` is active without showing a body.
+- Automatic cleanup for legacy armor stand markers from older builds.
 - Persistent, non-monster helper entity designed not to despawn in Peaceful.
-- Script behavior that keeps one managed `superagent` on top of each player's Minecraft Education Agent.
-- Rotation sync from the Agent to `superagent`.
+- Script behavior that keeps one managed `superaagent` on top of each player's Minecraft Education Agent.
+- Rotation sync from the Agent to `superaagent`.
 - Damage cancellation, high health, resistance, fire resistance, no gravity, no collision, and knockback resistance.
 - Smart hostile-mob attack aura that prioritizes nearby high-threat mobs, adds slowness/weakness, and emits attack particles.
 - MakeCode `superagent` blocks that are safe for Member + Survival use because they rely on normal Agent actions.
@@ -21,6 +22,7 @@ Minecraft Education 1.21.133 add-on and MakeCode extension for a visible aura he
 - `superagent power burst`
 - `superagent smart sweep`
 - `superagent overdrive`
+- `superagent keep aura on`
 - `superagent last burst count`
 
 ## Install
@@ -37,6 +39,12 @@ Use this GitHub URL in MakeCode Extensions:
 
 ```text
 https://github.com/numraise/superagent
+```
+
+For a pinned classroom build, use:
+
+```text
+https://github.com/numraise/superagent#superagent-0.1.10
 ```
 
 ## Test
