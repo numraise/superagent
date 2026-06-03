@@ -25,13 +25,30 @@ enum SuperagentSmartMode {
     Emergency = 2
 }
 
+enum SuperagentMoveDirection {
+    //% block="north"
+    North = 0,
+    //% block="east"
+    East = 1,
+    //% block="south"
+    South = 2,
+    //% block="west"
+    West = 3,
+    //% block="up"
+    Up = 4,
+    //% block="down"
+    Down = 5
+}
+
 /**
- * Member-safe control blocks for the invisible superagent add-on helper.
+ * Member-safe control blocks for the one-block superagent character.
  */
 //% weight=96 color=#5a43b5 icon="\uf21e" block="superagent"
 namespace superagent {
     let lastBurstCount = 0
-    let auraLoopStarted = false
+    let followLoopStarted = false
+    let followingAgent = false
+    let superagentPosition = pos(0, 0, 0)
 
     function clamp(value: number, min: number, max: number): number {
         if (value < min) {
@@ -54,45 +71,92 @@ namespace superagent {
         return mobs.execute(mobs.target(LOCAL_PLAYER), agent.getPosition(), command)
     }
 
+    function runAtSuperagent(command: string): boolean {
+        return mobs.execute(mobs.target(LOCAL_PLAYER), superagentPosition, command)
+    }
+
+    function setSuperagentPosition(position) {
+        superagentPosition = position
+        ensureCharacter()
+    }
+
+    function directionOffset(direction: SuperagentMoveDirection, blocks: number) {
+        blocks = clamp(blocks, 1, 32)
+        if (direction == SuperagentMoveDirection.East) {
+            return pos(blocks, 0, 0)
+        }
+        if (direction == SuperagentMoveDirection.South) {
+            return pos(0, 0, blocks)
+        }
+        if (direction == SuperagentMoveDirection.West) {
+            return pos(0 - blocks, 0, 0)
+        }
+        if (direction == SuperagentMoveDirection.Up) {
+            return pos(0, blocks, 0)
+        }
+        if (direction == SuperagentMoveDirection.Down) {
+            return pos(0, 0 - blocks, 0)
+        }
+        return pos(0, 0, 0 - blocks)
+    }
+
+    function ensureCharacter() {
+        runAtSuperagent("execute unless entity @e[type=superagent:superagent,r=2] run summon superagent:superagent ~ ~ ~")
+        runAtSuperagent("tp @e[type=superagent:superagent,r=64,c=1] ~ ~ ~")
+        runAtSuperagent("effect @e[type=superagent:superagent,r=2,c=1] resistance 10 255 true")
+        runAtSuperagent("effect @e[type=superagent:superagent,r=2,c=1] fire_resistance 10 1 true")
+        showCharacterPulse()
+    }
+
+    function showCharacterPulse() {
+        runAtSuperagent("particle superagent:agent_aura ~ ~0.5 ~")
+        runAtSuperagent("particle superagent:agent_spark ~ ~1.1 ~")
+        runAtSuperagent("particle minecraft:basic_flame_particle ~0.65 ~0.2 ~")
+        runAtSuperagent("particle minecraft:basic_flame_particle ~-0.65 ~0.2 ~")
+        runAtSuperagent("particle minecraft:basic_flame_particle ~ ~0.2 ~0.65")
+        runAtSuperagent("particle minecraft:basic_flame_particle ~ ~0.2 ~-0.65")
+    }
+
+    function ensureFollowLoop() {
+        if (followLoopStarted) {
+            return
+        }
+        followLoopStarted = true
+        loops.forever(function () {
+            if (followingAgent) {
+                superagentPosition = agent.getPosition()
+                ensureCharacter()
+                attackCommandBurst(2)
+            }
+            loops.pause(300)
+        })
+    }
+
     function syncAddonMob() {
         runAtAgent("kill @e[type=minecraft:armor_stand,name=superagent,r=64]")
         runAtAgent("kill @e[type=minecraft:armor_stand,name=superaagent,r=64]")
-        runAtAgent("execute unless entity @e[type=superagent:superagent,r=2] run summon superagent:superagent ~ ~ ~")
-        runAtAgent("tp @e[type=superagent:superagent,r=16,c=1] ~ ~ ~")
-        runAtAgent("effect @e[type=superagent:superagent,r=3,c=1] invisibility 10 1 true")
-        runAtAgent("effect @e[type=superagent:superagent,r=3,c=1] resistance 10 255 true")
+        superagentPosition = agent.getPosition()
+        ensureCharacter()
     }
 
     function auraPulseCommands() {
-        runAtAgent("particle superagent:agent_aura ~ ~0.2 ~")
-        runAtAgent("particle superagent:agent_spark ~ ~1.2 ~")
-        runAtAgent("particle minecraft:basic_flame_particle ~1 ~0.35 ~")
-        runAtAgent("particle minecraft:basic_flame_particle ~-1 ~0.35 ~")
-        runAtAgent("particle minecraft:basic_flame_particle ~ ~0.35 ~1")
-        runAtAgent("particle minecraft:basic_flame_particle ~ ~0.35 ~-1")
-        runAtAgent("particle minecraft:totem_particle ~ ~1.25 ~")
-        runAtAgent("particle minecraft:villager_happy ~ ~1.6 ~")
+        showCharacterPulse()
+        runAtSuperagent("particle minecraft:totem_particle ~ ~1.25 ~")
+        runAtSuperagent("particle minecraft:villager_happy ~ ~1.6 ~")
     }
 
     function attackCommandBurst(strength: number) {
         let damage = 8 + strength * 3
-        runAtAgent("particle superagent:attack_burst ~ ~0.8 ~")
-        runAtAgent("particle minecraft:critical_hit_emitter ~ ~1 ~")
-        runAtAgent("effect @e[family=monster,r=8] slowness 3 1 false")
-        runAtAgent("effect @e[family=monster,r=8] weakness 3 0 false")
-        runAtAgent("damage @e[family=monster,r=8] " + damage + " entity_attack")
+        runAtSuperagent("particle superagent:attack_burst ~ ~0.8 ~")
+        runAtSuperagent("particle minecraft:critical_hit_emitter ~ ~1 ~")
+        runAtSuperagent("effect @e[family=monster,r=8] slowness 3 1 false")
+        runAtSuperagent("effect @e[family=monster,r=8] weakness 3 0 false")
+        runAtSuperagent("damage @e[family=monster,r=8] " + damage + " entity_attack")
     }
 
     function ensureAuraLoop() {
-        if (auraLoopStarted) {
-            return
-        }
-        auraLoopStarted = true
-        loops.forever(function () {
-            syncAddonMob()
-            auraPulseCommands()
-            loops.pause(300)
-        })
+        followingAgent = true
+        ensureFollowLoop()
     }
 
     function smartRing(strength: number, includeVertical: boolean, emergency: boolean) {
@@ -273,5 +337,75 @@ namespace superagent {
         ensureAuraLoop()
         syncAddonMob()
         auraPulseCommands()
+    }
+
+    /**
+     * Spawn the visible one-block superagent character at the Agent.
+     */
+    //% blockId=superagent_spawn_at_agent block="superagent spawn at agent"
+    //% group="Control"
+    export function spawnAtAgent() {
+        followingAgent = false
+        setSuperagentPosition(agent.getPosition())
+    }
+
+    /**
+     * Recall the visible superagent character back to the Agent.
+     */
+    //% blockId=superagent_recall_to_agent block="superagent recall to agent"
+    //% group="Control"
+    export function recallToAgent() {
+        setSuperagentPosition(agent.getPosition())
+    }
+
+    /**
+     * Move the visible superagent character on the world grid.
+     */
+    //% blockId=superagent_move_character block="superagent move %direction blocks %blocks"
+    //% blocks.min=1 blocks.max=32
+    //% group="Control"
+    export function moveCharacter(direction: SuperagentMoveDirection, blocks: number) {
+        followingAgent = false
+        superagentPosition = positions.add(superagentPosition, directionOffset(direction, blocks))
+        ensureCharacter()
+    }
+
+    /**
+     * Keep the visible superagent character following the Agent.
+     */
+    //% blockId=superagent_follow_agent_on block="superagent follow agent on"
+    //% group="Control"
+    export function followAgentOn() {
+        followingAgent = true
+        ensureFollowLoop()
+        recallToAgent()
+    }
+
+    /**
+     * Stop automatic follow mode for the visible superagent character.
+     */
+    //% blockId=superagent_follow_agent_off block="superagent follow agent off"
+    //% group="Control"
+    export function followAgentOff() {
+        followingAgent = false
+        showCharacterPulse()
+    }
+
+    /**
+     * Attack hostile mobs around the visible superagent character.
+     */
+    //% blockId=superagent_attack_from_character block="superagent attack from character radius %radius strength %strength"
+    //% radius.min=1 radius.max=16 strength.min=1 strength.max=8
+    //% group="Combat"
+    export function attackFromCharacter(radius: number, strength: number) {
+        radius = clamp(radius, 1, 16)
+        strength = clamp(strength, 1, 8)
+        let damage = 8 + strength * 3
+        ensureCharacter()
+        runAtSuperagent("particle superagent:attack_burst ~ ~0.8 ~")
+        runAtSuperagent("particle minecraft:critical_hit_emitter ~ ~1 ~")
+        runAtSuperagent("effect @e[family=monster,r=" + radius + "] slowness 3 1 false")
+        runAtSuperagent("effect @e[family=monster,r=" + radius + "] weakness 3 0 false")
+        runAtSuperagent("damage @e[family=monster,r=" + radius + "] " + damage + " entity_attack")
     }
 }

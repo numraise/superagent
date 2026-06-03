@@ -1,6 +1,6 @@
 {
   "name": "superagent",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "superagent helper blocks and survival workflows for the Minecraft Education Agent.",
   "license": "MIT",
   "icon": "./icon.png",

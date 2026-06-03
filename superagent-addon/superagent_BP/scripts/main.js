@@ -2,10 +2,10 @@ import { EntityComponentTypes, system, world } from "@minecraft/server";
 
 const SUPER_AGENT_ID = "superagent:superagent";
 const LEGACY_VISIBLE_MARKER_ID = "minecraft:armor_stand";
-const DISPLAY_NAME = "superaagent";
+const DISPLAY_NAME = "superagent";
 const ROOT_TAG = "superagent.managed";
 const OWNER_TAG_PREFIX = "superagent.owner.";
-const READY_TAG = "superagent.ready.0_1_10";
+const READY_TAG = "superagent.ready.0_1_11";
 const ATTACK_RADIUS = 8;
 const ATTACK_DAMAGE = 14;
 const MAX_ATTACK_TARGETS = 12;
@@ -135,17 +135,10 @@ function findPlayerAgent(player) {
 }
 
 function findManagedSuperagents(player, anchorLocation) {
-  const playerOwnerTag = ownerTag(player);
   return player.dimension.getEntities({
     type: SUPER_AGENT_ID,
     location: anchorLocation,
     maxDistance: FOLLOW_RADIUS
-  }).filter((entity) => {
-    const nameTag = (entity.nameTag || "").toLowerCase();
-    return entity.hasTag(ROOT_TAG) ||
-      entity.hasTag(playerOwnerTag) ||
-      nameTag === "superagent" ||
-      nameTag === "superaagent";
   });
 }
 
@@ -170,10 +163,6 @@ function configureSuperagent(superagent, player) {
   superagent.nameTag = DISPLAY_NAME;
   superagent.addTag(ROOT_TAG);
   superagent.addTag(ownerTag(player));
-  addEffectSafe(superagent, "invisibility", 200, {
-    amplifier: 1,
-    showParticles: false
-  });
   addEffectSafe(superagent, "resistance", 200, {
     amplifier: 255,
     showParticles: false
@@ -215,31 +204,6 @@ function ensureFallbackSuperagent(player) {
     return current;
   }
   return ensureSuperagentAtLocation(player, player.location);
-}
-
-function followAgent(superagent, agentEntity) {
-  if (!superagent) {
-    return;
-  }
-  const rotation = typeof agentEntity.getRotation === "function" ? agentEntity.getRotation() : { x: 0, y: 0 };
-  try {
-    superagent.teleport(agentEntity.location, {
-      dimension: agentEntity.dimension,
-      rotation,
-      checkForBlocks: false
-    });
-  } catch (error) {
-    try {
-      superagent.teleport(agentEntity.location);
-    } catch (ignored) {
-    }
-  }
-  try {
-    if (typeof superagent.clearVelocity === "function") {
-      superagent.clearVelocity();
-    }
-  } catch (error) {
-  }
 }
 
 function isAttackTarget(entity) {
@@ -308,18 +272,6 @@ function formatCoord(value) {
   return Math.round(value * 100) / 100;
 }
 
-function escapeCommandString(value) {
-  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-}
-
-function agentName(player) {
-  return `${player.name}.Agent`;
-}
-
-function agentSelector(player) {
-  return `@e[name="${escapeCommandString(agentName(player))}"]`;
-}
-
 function runCommandSafe(dimension, command) {
   try {
     if (typeof dimension.runCommandAsync === "function") {
@@ -340,33 +292,6 @@ function runCommandSafe(dimension, command) {
 
 function spawnParticleCommand(dimension, name, location) {
   return runCommandSafe(dimension, `particle ${name} ${formatCoord(location.x)} ${formatCoord(location.y)} ${formatCoord(location.z)}`);
-}
-
-function runAtNamedAgent(player, command) {
-  return runCommandSafe(player.dimension, `execute as ${agentSelector(player)} at @s run ${command}`);
-}
-
-function commandPresenceOnAgent(player) {
-  runAtNamedAgent(player, "particle superagent:agent_aura ~ ~0.15 ~");
-  runAtNamedAgent(player, "particle superagent:agent_spark ~ ~1.2 ~");
-  runAtNamedAgent(player, "particle minecraft:totem_particle ~ ~1.1 ~");
-  runAtNamedAgent(player, "particle minecraft:basic_flame_particle ~ ~0.15 ~");
-  runCommandSafe(player.dimension, `effect ${agentSelector(player)} strength 3 1 false`);
-  runCommandSafe(player.dimension, `effect ${agentSelector(player)} resistance 3 0 false`);
-}
-
-function commandFollowSuperagent(player) {
-  const playerOwnerTag = ownerTag(player);
-  runAtNamedAgent(player, `tp @e[type=${SUPER_AGENT_ID},tag=${playerOwnerTag}] ~ ~ ~`);
-  runAtNamedAgent(player, `effect @e[type=${SUPER_AGENT_ID},tag=${playerOwnerTag},r=3] invisibility 10 1 true`);
-  runAtNamedAgent(player, `effect @e[type=${SUPER_AGENT_ID},tag=${playerOwnerTag},r=3] resistance 10 255 true`);
-}
-
-function commandAttackAroundAgent(player) {
-  runAtNamedAgent(player, `damage @e[family=monster,r=${ATTACK_RADIUS}] ${ATTACK_DAMAGE} entity_attack entity @s`);
-  runAtNamedAgent(player, `effect @e[family=monster,r=${ATTACK_RADIUS}] slowness 3 1 false`);
-  runAtNamedAgent(player, `effect @e[family=monster,r=${ATTACK_RADIUS}] weakness 3 0 false`);
-  runAtNamedAgent(player, "particle superagent:attack_burst ~ ~0.8 ~");
 }
 
 function spawnParticleAny(dimension, names, location) {
@@ -483,31 +408,26 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.10 script active");
+      player.sendMessage("superagent 0.1.11 script active");
     }
   } catch (error) {
   }
 }
 
+function tickSuperagent(player, superagent, tick) {
+  configureSuperagent(superagent, player);
+  keepAlive(superagent);
+  emitPresenceParticles(superagent.dimension, superagent.location, tick);
+  attackAround(superagent, tick);
+}
+
 function tickPlayer(player, tick) {
   announceReady(player);
   cleanupLegacyVisibleMarkers(player, player.location);
-  const fallbackSuperagent = ensureFallbackSuperagent(player);
-  keepAlive(fallbackSuperagent);
-  commandFollowSuperagent(player);
-  commandPresenceOnAgent(player);
-  commandAttackAroundAgent(player);
-  const agentEntity = findPlayerAgent(player);
-  if (!agentEntity) {
-    return;
+  const superagents = findManagedSuperagentsNearPlayer(player);
+  for (const superagent of superagents) {
+    tickSuperagent(player, superagent, tick);
   }
-  cleanupLegacyVisibleMarkers(player, agentEntity.location);
-  const superagent = ensureSuperagent(player, agentEntity);
-  followAgent(superagent, agentEntity);
-  keepAlive(superagent);
-  refreshAgentVisibleEffects(agentEntity);
-  emitPresenceParticles(agentEntity.dimension, agentEntity.location, tick);
-  attackAround(superagent || agentEntity, tick);
 }
 
 world.beforeEvents.entityHurt.subscribe((event) => {

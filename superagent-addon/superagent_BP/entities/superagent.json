@@ -22,8 +22,8 @@
         }
       },
       "minecraft:collision_box": {
-        "width": 0.01,
-        "height": 0.01
+        "width": 1.0,
+        "height": 1.0
       },
       "minecraft:movement": {
         "value": 0.0
@@ -41,12 +41,12 @@
       },
       "minecraft:fire_immune": true,
       "minecraft:nameable": {
-        "always_show": false,
+        "always_show": true,
         "allow_name_tag_renaming": false
       },
       "minecraft:persistent": {},
       "minecraft:scale": {
-        "value": 0.01
+        "value": 1.0
       }
     }
   }
