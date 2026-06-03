@@ -22,6 +22,15 @@ Minecraft Education 1.21.133 add-on and MakeCode extension for a visible one-blo
 - `superagent move north/east/south/west/up/down blocks`
 - `superagent follow agent on`
 - `superagent follow agent off`
+- `superagent dash direction blocks`
+- `superagent scout direction steps`
+- `superagent patrol square side rounds`
+- `superagent orbit agent radius steps`
+- `superagent evade to agent side distance`
+- `superagent high ground blocks`
+- `superagent zigzag direction steps`
+- `superagent spiral search radius rounds`
+- `superagent smart move guard/scout/patrol/orbit/evade/high ground/zigzag/spiral steps strength`
 - `superagent attack from character radius strength`
 - `superagent attack aura`
 - `superagent guard agent`
@@ -50,7 +59,7 @@ https://github.com/numraise/superagent
 For a pinned classroom build, use:
 
 ```text
-https://github.com/numraise/superagent#superagent-0.1.11
+https://github.com/numraise/superagent#superagent-0.1.12
 ```
 
 ## Test

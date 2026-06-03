@@ -54,10 +54,16 @@ function transformMakeCodeTs(source) {
     "runAtAgent",
     "runAtSuperagent",
     "setSuperagentPosition",
+    "selectSuperagentNear",
+    "teleportCharacterFrom",
+    "teleportCharacterTo",
     "directionOffset",
     "ensureCharacter",
     "showCharacterPulse",
     "ensureFollowLoop",
+    "smartMoveStep",
+    "patrolStep",
+    "orbitStep",
     "syncAddonMob",
     "auraPulseCommands",
     "attackCommandBurst",
@@ -87,9 +93,11 @@ ${js.slice(lastBrace + 1)}`;
 function createMockAgent() {
   const calls = [];
   const commandCalls = [];
+  const mobCalls = [];
   return {
     calls,
     commandCalls,
+    mobCalls,
     attack(direction) {
       calls.push(["attack", direction]);
     },
@@ -115,10 +123,28 @@ function loadSuperagent(agent) {
     agent,
     mobs: {
       target(kind) {
-        return ["target", kind];
+        return {
+          kind,
+          coordinate: null,
+          radius: null,
+          rules: [],
+          atCoordinate(p) {
+            this.coordinate = p;
+          },
+          withinRadius(radius) {
+            this.radius = radius;
+          },
+          addRule(rule, value) {
+            this.rules.push([rule, value]);
+          },
+        };
       },
       execute(target, position, command) {
         agent.commandCalls.push(["execute", target, position, command]);
+        return true;
+      },
+      teleportToPosition(target, destination) {
+        agent.mobCalls.push(["teleportToPosition", target, destination]);
         return true;
       },
     },
@@ -139,6 +165,7 @@ function loadSuperagent(agent) {
       return { x, y, z };
     },
     LOCAL_PLAYER: "local_player",
+    ALL_ENTITIES: "all_entities",
     TurnDirection: { Left: 0, Right: 1 },
     FORWARD: Direction.FORWARD,
     BACK: Direction.BACK,
@@ -207,7 +234,8 @@ test("superagent extension emits visible aura and sync commands at the Agent pos
   toolkit.keepAuraOn();
   const commands = agent.commandCalls.map((call) => call[3]);
   assert(commands.some((command) => command.includes("summon superagent:superagent")));
-  assert(commands.some((command) => command.includes("tp @e[type=superagent:superagent")));
+  assert(!commands.some((command) => command.includes("tp @e[type=superagent:superagent")));
+  assert(agent.mobCalls.some((call) => call[0] === "teleportToPosition"));
   assert(commands.some((command) => command.includes("particle superagent:agent_aura")));
   assert(commands.some((command) => command.includes("particle minecraft:basic_flame_particle")));
   assert(agent.commandCalls.every((call) => call[2].x === 10 && call[2].y === 20 && call[2].z === 30));
@@ -222,10 +250,12 @@ test("superagent extension controls an independent one-block character position"
   const commands = agent.commandCalls.map((call) => call[3]);
   const positions = agent.commandCalls.map((call) => call[2]);
   assert(commands.some((command) => command.includes("summon superagent:superagent")));
-  assert(commands.some((command) => command.includes("tp @e[type=superagent:superagent")));
   assert(commands.some((command) => command.includes("particle superagent:agent_aura")));
   assert(commands.some((command) => command.includes("damage @e[family=monster,r=5] 20 entity_attack")));
-  assert(positions.some((position) => position.x === 13 && position.y === 20 && position.z === 30));
+  assert(!commands.some((command) => command.includes("tp @e[type=superagent:superagent")));
+  assert(agent.mobCalls.some((call) => call[0] === "teleportToPosition" && call[2].x === 13 && call[2].y === 20 && call[2].z === 30));
+  assert(agent.mobCalls.some((call) => call[1].rules.some((rule) => rule[0] === "type" && rule[1] === "superagent:superagent")));
+  assert(positions.some((position) => position.x === 10 && position.y === 20 && position.z === 30));
 });
 
 test("superagent extension can run and stop a follow-agent loop", () => {
@@ -235,6 +265,23 @@ test("superagent extension can run and stop a follow-agent loop", () => {
   toolkit.followAgentOff();
   assert(agent.calls.some((call) => call[0] === "forever"));
   assert(agent.commandCalls.some((call) => call[3].includes("summon superagent:superagent")));
+});
+
+test("superagent extension provides many smart movement commands", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.spawnAtAgent();
+  toolkit.dash(1, 5);
+  toolkit.scoutLine(0, 4);
+  toolkit.patrolSquare(3, 2);
+  toolkit.orbitAgent(4, 8);
+  toolkit.evadeToAgentSide(3);
+  toolkit.highGround(4);
+  toolkit.zigzag(1, 6);
+  toolkit.spiralSearch(2, 3);
+  toolkit.smartMove(0, 5, 2);
+  assert(agent.mobCalls.filter((call) => call[0] === "teleportToPosition").length >= 20);
+  assert(agent.commandCalls.some((call) => call[3].includes("particle superagent:attack_burst")));
 });
 
 test("add-on manifests target Minecraft Education 1.21.133 compatible engine and stable script API", () => {
@@ -308,6 +355,7 @@ test("superagent script protects and powers MakeCode-controlled character withou
   assert(script.includes("target.applyDamage(ATTACK_DAMAGE"));
   assert(script.includes("dimension.spawnParticle"));
   assert(script.includes("function tickSuperagent"));
+  assert(script.includes("const fallbackSuperagent = ensureFallbackSuperagent(player)"));
   assert(!script.includes("function followAgent"));
   assert(!script.includes("superagent.teleport(agentEntity.location"));
 });

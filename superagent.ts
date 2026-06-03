@@ -40,6 +40,25 @@ enum SuperagentMoveDirection {
     Down = 5
 }
 
+enum SuperagentSmartMoveMode {
+    //% block="guard"
+    Guard = 0,
+    //% block="scout"
+    Scout = 1,
+    //% block="patrol"
+    Patrol = 2,
+    //% block="orbit"
+    Orbit = 3,
+    //% block="evade"
+    Evade = 4,
+    //% block="high ground"
+    HighGround = 5,
+    //% block="zigzag"
+    Zigzag = 6,
+    //% block="spiral"
+    Spiral = 7
+}
+
 /**
  * Member-safe control blocks for the one-block superagent character.
  */
@@ -75,8 +94,27 @@ namespace superagent {
         return mobs.execute(mobs.target(LOCAL_PLAYER), superagentPosition, command)
     }
 
-    function setSuperagentPosition(position) {
+    function selectSuperagentNear(position, radius: number) {
+        let selected = mobs.target(ALL_ENTITIES)
+        selected.atCoordinate(position)
+        selected.withinRadius(clamp(radius, 1, 256))
+        selected.addRule("type", "superagent:superagent")
+        return selected
+    }
+
+    function teleportCharacterFrom(oldPosition, newPosition) {
+        mobs.teleportToPosition(selectSuperagentNear(oldPosition, 256), newPosition)
+        mobs.teleportToPosition(selectSuperagentNear(newPosition, 32), newPosition)
+    }
+
+    function teleportCharacterTo(position) {
+        let oldPosition = superagentPosition
         superagentPosition = position
+        teleportCharacterFrom(oldPosition, superagentPosition)
+    }
+
+    function setSuperagentPosition(position) {
+        teleportCharacterTo(position)
         ensureCharacter()
     }
 
@@ -102,7 +140,7 @@ namespace superagent {
 
     function ensureCharacter() {
         runAtSuperagent("execute unless entity @e[type=superagent:superagent,r=2] run summon superagent:superagent ~ ~ ~")
-        runAtSuperagent("tp @e[type=superagent:superagent,r=64,c=1] ~ ~ ~")
+        mobs.teleportToPosition(selectSuperagentNear(superagentPosition, 256), superagentPosition)
         runAtSuperagent("effect @e[type=superagent:superagent,r=2,c=1] resistance 10 255 true")
         runAtSuperagent("effect @e[type=superagent:superagent,r=2,c=1] fire_resistance 10 1 true")
         showCharacterPulse()
@@ -135,8 +173,7 @@ namespace superagent {
     function syncAddonMob() {
         runAtAgent("kill @e[type=minecraft:armor_stand,name=superagent,r=64]")
         runAtAgent("kill @e[type=minecraft:armor_stand,name=superaagent,r=64]")
-        superagentPosition = agent.getPosition()
-        ensureCharacter()
+        setSuperagentPosition(agent.getPosition())
     }
 
     function auraPulseCommands() {
@@ -155,8 +192,67 @@ namespace superagent {
     }
 
     function ensureAuraLoop() {
-        followingAgent = true
         ensureFollowLoop()
+    }
+
+    function smartMoveStep(mode: SuperagentSmartMoveMode, step: number, strength: number) {
+        if (mode == SuperagentSmartMoveMode.Scout) {
+            moveCharacter(SuperagentMoveDirection.North, 1)
+        } else if (mode == SuperagentSmartMoveMode.Patrol) {
+            patrolStep(4, step)
+        } else if (mode == SuperagentSmartMoveMode.Orbit) {
+            orbitStep(3 + strength, step)
+        } else if (mode == SuperagentSmartMoveMode.Evade) {
+            moveCharacter(step % 2 == 0 ? SuperagentMoveDirection.West : SuperagentMoveDirection.East, strength)
+        } else if (mode == SuperagentSmartMoveMode.HighGround) {
+            moveCharacter(SuperagentMoveDirection.Up, 1)
+        } else if (mode == SuperagentSmartMoveMode.Zigzag) {
+            moveCharacter(SuperagentMoveDirection.North, 1)
+            moveCharacter(step % 2 == 0 ? SuperagentMoveDirection.East : SuperagentMoveDirection.West, 1)
+        } else if (mode == SuperagentSmartMoveMode.Spiral) {
+            spiralSearch(1 + strength, 1)
+        } else {
+            showCharacterPulse()
+        }
+        attackFromCharacter(6, strength)
+    }
+
+    function patrolStep(side: number, step: number) {
+        let phase = step % 4
+        if (phase == 0) {
+            moveCharacter(SuperagentMoveDirection.East, side)
+        } else if (phase == 1) {
+            moveCharacter(SuperagentMoveDirection.South, side)
+        } else if (phase == 2) {
+            moveCharacter(SuperagentMoveDirection.West, side)
+        } else {
+            moveCharacter(SuperagentMoveDirection.North, side)
+        }
+    }
+
+    function orbitStep(radius: number, step: number) {
+        radius = clamp(radius, 1, 16)
+        let center = agent.getPosition()
+        let phase = step % 8
+        let target = center
+        if (phase == 0) {
+            target = positions.add(center, pos(radius, 0, 0))
+        } else if (phase == 1) {
+            target = positions.add(center, pos(radius, 0, radius))
+        } else if (phase == 2) {
+            target = positions.add(center, pos(0, 0, radius))
+        } else if (phase == 3) {
+            target = positions.add(center, pos(0 - radius, 0, radius))
+        } else if (phase == 4) {
+            target = positions.add(center, pos(0 - radius, 0, 0))
+        } else if (phase == 5) {
+            target = positions.add(center, pos(0 - radius, 0, 0 - radius))
+        } else if (phase == 6) {
+            target = positions.add(center, pos(0, 0, 0 - radius))
+        } else {
+            target = positions.add(center, pos(radius, 0, 0 - radius))
+        }
+        setSuperagentPosition(target)
     }
 
     function smartRing(strength: number, includeVertical: boolean, emergency: boolean) {
@@ -195,7 +291,7 @@ namespace superagent {
 
     function pulse(style: SuperagentBurstStyle) {
         ensureAuraLoop()
-        syncAddonMob()
+        ensureCharacter()
         auraPulseCommands()
         if (style == SuperagentBurstStyle.Vertical) {
             showVerticalPulse()
@@ -226,7 +322,7 @@ namespace superagent {
     export function showStatus(status: SuperagentStatus) {
         lastBurstCount = 0
         ensureAuraLoop()
-        syncAddonMob()
+        ensureCharacter()
         auraPulseCommands()
         if (status == SuperagentStatus.Attack) {
             showRingPulse()
@@ -252,7 +348,7 @@ namespace superagent {
         rounds = clamp(rounds, 1, 32)
         hits = clamp(hits, 1, 8)
         for (let i = 0; i < rounds; i++) {
-            syncAddonMob()
+            ensureCharacter()
             auraPulseCommands()
             attackDirection(FORWARD, hits)
             attackDirection(RIGHT, hits)
@@ -300,7 +396,7 @@ namespace superagent {
         rounds = clamp(rounds, 1, 16)
         strength = clamp(strength, 1, 5)
         for (let i = 0; i < rounds; i++) {
-            syncAddonMob()
+            ensureCharacter()
             auraPulseCommands()
             if (mode == SuperagentSmartMode.Emergency) {
                 smartRing(strength + 1, true, true)
@@ -366,8 +462,7 @@ namespace superagent {
     //% group="Control"
     export function moveCharacter(direction: SuperagentMoveDirection, blocks: number) {
         followingAgent = false
-        superagentPosition = positions.add(superagentPosition, directionOffset(direction, blocks))
-        ensureCharacter()
+        setSuperagentPosition(positions.add(superagentPosition, directionOffset(direction, blocks)))
     }
 
     /**
@@ -407,5 +502,145 @@ namespace superagent {
         runAtSuperagent("effect @e[family=monster,r=" + radius + "] slowness 3 1 false")
         runAtSuperagent("effect @e[family=monster,r=" + radius + "] weakness 3 0 false")
         runAtSuperagent("damage @e[family=monster,r=" + radius + "] " + damage + " entity_attack")
+    }
+
+    /**
+     * Dash the visible superagent character quickly in one direction.
+     */
+    //% blockId=superagent_dash block="superagent dash %direction blocks %blocks"
+    //% blocks.min=1 blocks.max=32
+    //% group="Smart Move"
+    export function dash(direction: SuperagentMoveDirection, blocks: number) {
+        followingAgent = false
+        blocks = clamp(blocks, 1, 32)
+        for (let i = 0; i < blocks; i++) {
+            moveCharacter(direction, 1)
+        }
+        attackFromCharacter(6, 2)
+    }
+
+    /**
+     * Scout in a straight line while pulsing and attacking nearby threats.
+     */
+    //% blockId=superagent_scout_line block="superagent scout %direction steps %steps"
+    //% steps.min=1 steps.max=32
+    //% group="Smart Move"
+    export function scoutLine(direction: SuperagentMoveDirection, steps: number) {
+        followingAgent = false
+        steps = clamp(steps, 1, 32)
+        for (let i = 0; i < steps; i++) {
+            moveCharacter(direction, 1)
+            attackFromCharacter(5, 2)
+        }
+    }
+
+    /**
+     * Patrol a square path around the current superagent position.
+     */
+    //% blockId=superagent_patrol_square block="superagent patrol square side %side rounds %rounds"
+    //% side.min=1 side.max=16 rounds.min=1 rounds.max=8
+    //% group="Smart Move"
+    export function patrolSquare(side: number, rounds: number) {
+        followingAgent = false
+        side = clamp(side, 1, 16)
+        rounds = clamp(rounds, 1, 8)
+        for (let round = 0; round < rounds; round++) {
+            for (let phase = 0; phase < 4; phase++) {
+                patrolStep(side, phase)
+                attackFromCharacter(6, 2)
+            }
+        }
+    }
+
+    /**
+     * Orbit around the Agent while attacking from the superagent position.
+     */
+    //% blockId=superagent_orbit_agent block="superagent orbit agent radius %radius steps %steps"
+    //% radius.min=1 radius.max=16 steps.min=1 steps.max=32
+    //% group="Smart Move"
+    export function orbitAgent(radius: number, steps: number) {
+        followingAgent = false
+        radius = clamp(radius, 1, 16)
+        steps = clamp(steps, 1, 32)
+        for (let i = 0; i < steps; i++) {
+            orbitStep(radius, i)
+            attackFromCharacter(7, 3)
+        }
+    }
+
+    /**
+     * Evade to the Agent's side and counterattack.
+     */
+    //% blockId=superagent_evade_to_agent_side block="superagent evade to agent side distance %distance"
+    //% distance.min=1 distance.max=16
+    //% group="Smart Move"
+    export function evadeToAgentSide(distance: number) {
+        followingAgent = false
+        distance = clamp(distance, 1, 16)
+        setSuperagentPosition(positions.add(agent.getPosition(), pos(distance, 0, distance)))
+        attackFromCharacter(8, 3)
+    }
+
+    /**
+     * Move the superagent upward for a high-ground guard position.
+     */
+    //% blockId=superagent_high_ground block="superagent high ground blocks %blocks"
+    //% blocks.min=1 blocks.max=16
+    //% group="Smart Move"
+    export function highGround(blocks: number) {
+        followingAgent = false
+        blocks = clamp(blocks, 1, 16)
+        moveCharacter(SuperagentMoveDirection.Up, blocks)
+        attackFromCharacter(8, 3)
+    }
+
+    /**
+     * Advance with alternating side steps to cover more area.
+     */
+    //% blockId=superagent_zigzag block="superagent zigzag %direction steps %steps"
+    //% steps.min=1 steps.max=32
+    //% group="Smart Move"
+    export function zigzag(direction: SuperagentMoveDirection, steps: number) {
+        followingAgent = false
+        steps = clamp(steps, 1, 32)
+        for (let i = 0; i < steps; i++) {
+            moveCharacter(direction, 1)
+            moveCharacter(i % 2 == 0 ? SuperagentMoveDirection.East : SuperagentMoveDirection.West, 1)
+            attackFromCharacter(5, 2)
+        }
+    }
+
+    /**
+     * Search outward in a spiral from the current superagent position.
+     */
+    //% blockId=superagent_spiral_search block="superagent spiral search radius %radius rounds %rounds"
+    //% radius.min=1 radius.max=8 rounds.min=1 rounds.max=8
+    //% group="Smart Move"
+    export function spiralSearch(radius: number, rounds: number) {
+        followingAgent = false
+        radius = clamp(radius, 1, 8)
+        rounds = clamp(rounds, 1, 8)
+        for (let round = 1; round <= rounds; round++) {
+            moveCharacter(SuperagentMoveDirection.East, radius * round)
+            moveCharacter(SuperagentMoveDirection.South, radius * round)
+            moveCharacter(SuperagentMoveDirection.West, radius * round + 1)
+            moveCharacter(SuperagentMoveDirection.North, radius * round + 1)
+            attackFromCharacter(6, 2)
+        }
+    }
+
+    /**
+     * Choose a smart movement pattern and attack from the superagent character.
+     */
+    //% blockId=superagent_smart_move block="superagent smart move %mode steps %steps strength %strength"
+    //% steps.min=1 steps.max=32 strength.min=1 strength.max=8
+    //% group="Smart Move"
+    export function smartMove(mode: SuperagentSmartMoveMode, steps: number, strength: number) {
+        followingAgent = false
+        steps = clamp(steps, 1, 32)
+        strength = clamp(strength, 1, 8)
+        for (let i = 0; i < steps; i++) {
+            smartMoveStep(mode, i, strength)
+        }
     }
 }

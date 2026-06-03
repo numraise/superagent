@@ -5,7 +5,7 @@ const LEGACY_VISIBLE_MARKER_ID = "minecraft:armor_stand";
 const DISPLAY_NAME = "superagent";
 const ROOT_TAG = "superagent.managed";
 const OWNER_TAG_PREFIX = "superagent.owner.";
-const READY_TAG = "superagent.ready.0_1_11";
+const READY_TAG = "superagent.ready.0_1_12";
 const ATTACK_RADIUS = 8;
 const ATTACK_DAMAGE = 14;
 const MAX_ATTACK_TARGETS = 12;
@@ -408,7 +408,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.11 script active");
+      player.sendMessage("superagent 0.1.12 script active");
     }
   } catch (error) {
   }
@@ -424,8 +424,15 @@ function tickSuperagent(player, superagent, tick) {
 function tickPlayer(player, tick) {
   announceReady(player);
   cleanupLegacyVisibleMarkers(player, player.location);
+  const fallbackSuperagent = ensureFallbackSuperagent(player);
+  if (fallbackSuperagent) {
+    tickSuperagent(player, fallbackSuperagent, tick);
+  }
   const superagents = findManagedSuperagentsNearPlayer(player);
   for (const superagent of superagents) {
+    if (fallbackSuperagent && superagent.id === fallbackSuperagent.id) {
+      continue;
+    }
     tickSuperagent(player, superagent, tick);
   }
 }
